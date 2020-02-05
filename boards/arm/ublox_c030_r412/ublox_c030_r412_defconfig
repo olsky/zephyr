@@ -38,15 +38,11 @@ CONFIG_ARM_MPU=y
 CONFIG_CLOCK_CONTROL=y
 
 # Clock configuration for Cube Clock control driver
-CONFIG_CLOCK_STM32_HSE_CLOCK=8000000
 CONFIG_CLOCK_STM32_SYSCLK_SRC_PLL=y
-# use HSE as PLL input
-CONFIG_CLOCK_STM32_PLL_SRC_HSE=y
-# however, the board does not have an external oscillator, so just use
-# the 8MHz clock signal coming from integrated STLink
-CONFIG_CLOCK_STM32_HSE_BYPASS=y
-# produce 168MHz clock at PLL output
-CONFIG_CLOCK_STM32_PLL_M_DIVISOR=8
+CONFIG_CLOCK_STM32_PLL_SRC_HSI=y
+
+# clock at PLL output
+CONFIG_CLOCK_STM32_PLL_M_DIVISOR=16
 CONFIG_CLOCK_STM32_PLL_N_MULTIPLIER=336
 CONFIG_CLOCK_STM32_PLL_P_DIVISOR=2
 CONFIG_CLOCK_STM32_PLL_Q_DIVISOR=7
