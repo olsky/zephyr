@@ -15,4 +15,21 @@ config UART_2
 
 endif # UART_CONSOLE
 
+if MODEM
+
+config UART_1
+	default y
+
+config MODEM_UBLOX_SARA
+	default y
+
+choice MODEM_UBLOX_SARA_VARIANT
+	default MODEM_UBLOX_SARA_R4
+endchoice
+
+config UART_INTERRUPT_DRIVEN
+	default y
+
+endif # MODEM
+
 endif # BOARD_UBLOX_C030_R412
