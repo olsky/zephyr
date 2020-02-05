@@ -14,15 +14,15 @@
 	compatible = "u-blox,c030-u201";
 
 	chosen {
-		zephyr,console = &usart3;
-		zephyr,shell-uart = &usart3;
+		zephyr,console = &usart1;
+		zephyr,shell-uart = &usart1;
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
 	};
 };
 
-&usart3 {
+&usart1 {
 	current-speed = <115200>;
 	status = "okay";
 };
