@@ -10,9 +10,23 @@
 #include <drivers/pinmux.h>
 #include <sys/sys_io.h>
 
+#include <pinmux/stm32/pinmux_stm32.h>
+
+/* pin assignments for NUCLEO-F429ZI board */
+static const struct pin_config pinconf[] = {
+#ifdef CONFIG_UART_1
+	{STM32_PIN_PA9,  STM32F4_PINMUX_FUNC_PA9_USART1_TX},
+	{STM32_PIN_PA10, STM32F4_PINMUX_FUNC_PA10_USART1_RX},
+#endif /* CONFIG_UART_1 */
+};
+
 static int pinmux_stm32_init(struct device *port)
 {
-	/* Empty stub for now. Will add code later. */
+	ARG_UNUSED(port);
+
+	/* Setup pins for ublox board. */
+	stm32_setup_pins(pinconf, ARRAY_SIZE(pinconf));
+
 	return 0;
 }
 
