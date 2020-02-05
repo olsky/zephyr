@@ -1,0 +1,9 @@
+identifier: ublox_c030_u201
+name: U-Blox-C030-U201
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram:   256
+flash: 1024

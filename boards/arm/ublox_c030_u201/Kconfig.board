@@ -1,0 +1,8 @@
+# U-Blox C030-U201 board configuration
+
+# Copyright (c) 2017 Linaro Limited
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_UBLOX_C030_U201
+	bool "U-Blox C030-U201 IoT Starter Kit"
+	depends on SOC_STM32F437XX
