@@ -1,0 +1,8 @@
+# U-Blox C030-R412 board configuration
+
+# Copyright (c) 2017 Linaro Limited
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_UBLOX_C030_R412
+	bool "U-Blox C030-R412 IoT Starter Kit"
+	depends on SOC_STM32F437XX

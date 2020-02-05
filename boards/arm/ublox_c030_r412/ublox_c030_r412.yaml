@@ -1,0 +1,9 @@
+identifier: ublox_c030_r412
+name: U-Blox-C030-R412
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram:   256
+flash: 1024

@@ -1,0 +1,18 @@
+# Discovery IoT L475 board configuration
+
+# Copyright (c) 2017 Linaro Limited
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_UBLOX_C030_R412
+
+config BOARD
+	default "ublox_c030_r412"
+
+if UART_CONSOLE
+
+config UART_2
+	default y
+
+endif # UART_CONSOLE
+
+endif # BOARD_UBLOX_C030_R412
