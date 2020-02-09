@@ -125,6 +125,25 @@ static inline int tftpc_send_ack(int sock, int block) {
 	return send(sock, tmp, 4, 0);
 }
 
+/* Name: tftpc_send_err
+ * Description: This function sends an Error report to the TFTP Server. */
+static inline int tftpc_send_err(int sock, int err_code, char *err_string) {
+
+	LOG_ERR("Client Error. Sending code: %d(%s)", err_code, err_string);
+
+	/* Fill in the "Err" Opcode and the actual error code. */
+	fillshort(tftpc_request_buffer, ERROR_OPCODE);
+	fillshort(tftpc_request_buffer + 2, err_code);
+	tftpc_request_size = 4;
+
+	/* Copy the Error String. */
+	strcpy(tftpc_request_buffer + 4, err_string);
+	tftpc_request_size += strlen(err_string);
+
+	/* Lets send this request buffer out. Size of request buffer is 4 bytes. */
+	return send(sock, tftpc_request_buffer, tftpc_request_size, 0);
+}
+
 /* Name: tftpc_recv
  * Description: This function tries to get data from the TFTP Server (either response
  * or data). Times out eventually. */
@@ -157,7 +176,9 @@ static int tftpc_recv(int sock) {
  * and place it in the user buffer. */
 static int tftpc_process(int sock, struct tftpc *client) {
 
-	u16_t block_no;
+	u16_t    block_no;
+	u32_t    cpy_size;
+	bool     send_ack = true;
 
 	/* Get the block number as received in the packet. */
 	block_no = getshort(tftpc_request_buffer + 2);
@@ -169,19 +190,44 @@ static int tftpc_process(int sock, struct tftpc *client) {
 
 		/* OK - This is the block number we are looking for. Lets store this data in some
 		 * user buffer (or file).
-		 *
-		 * Note that the first 4 bytes of the "response" is the TFTP header. Everything else is the
-		 * user buffer. */
-		memcpy(client->user_buf + tftpc_index, tftpc_request_buffer + TFTP_HEADER_SIZE,
-				         tftpc_request_size - TFTP_HEADER_SIZE);
+		 * -> Note that the first 4 bytes of the "response" is the TFTP header. Everything else is the
+		 * user buffer.
+		 * -> Before pushing data to the buffer, we should check if we have overflowed? If so, we can
+		 * probably store some of this data and exit after sending an error to the server. Or we can simply
+		 * exit without storing any data. Both approaches are okay. Here, we've implemented the first one. */
+		if ((tftpc_request_size - TFTP_HEADER_SIZE) >
+				(client->user_buf_size - tftpc_index)) {
+			/* Can't copy all. Lets only copy a minimal set and set an error. */
+			cpy_size = client->user_buf_size - tftpc_index;
+			send_ack = false;
+		}
+		else {
+			/* Can copy all. */
+			cpy_size = tftpc_request_size - TFTP_HEADER_SIZE;
+		}
 
-		/* User buffer index to be updated.
-		 * TODO: The index here might overflow, given that the user hadn't provided this much buffer,
-		 * we need to handle this appropriately instead of generating buffer overflows. */
-		tftpc_index += (tftpc_request_size - TFTP_HEADER_SIZE);
+		/* Perform the actual copy and update the index. */
+		memcpy(client->user_buf + tftpc_index,
+				tftpc_request_buffer + TFTP_HEADER_SIZE, cpy_size);
+		tftpc_index += cpy_size;
 
-		/* Now we are in a position to ack this data. */
-		tftpc_send_ack(sock, block_no);
+		/* Was there any problem? */
+		if (send_ack == true) {
+
+			/* Now we are in a position to ack this data. */
+			tftpc_send_ack(sock, block_no);
+		}
+		else {
+
+			/* Send Error :-( */
+			tftpc_send_err(sock, 0x3, "Buffer Overflow");
+
+			/* Log the error. */
+			LOG_ERR("For the transfer of this file, the user provided buffer of size: %d", client->user_buf_size);
+			LOG_ERR("However, it seems that the actual file has larger size. Exiting !");
+
+			return (TFTPC_BUFFER_OVERFLOW);
+		}
 
 		/* We recevied a "block" of data. Lets update the global book-keeping variable that
 		 * tracks the number of blocks received. */

@@ -32,6 +32,7 @@
 /* TFTP Client Success / Error Codes. */
 #define TFTPC_DATA_RX_SUCCESS     1
 #define TFTPC_DUPLICATE_DATA     -1
+#define TFTPC_BUFFER_OVERFLOW    -2
 #define TFTPC_UNKNOWN_FAILURE    -100
 #define TFTPC_OP_COMPLETED        2
 
