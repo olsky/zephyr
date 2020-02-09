@@ -332,6 +332,7 @@ int tftp_get(struct sockaddr_in *server, struct tftpc *client,
 	int     stat;
 	int     sock;
 	u16_t   server_response;
+	u8_t    no_of_retransmists = 0;
 
 	/* Re-init the global "block number" variable. */
 	tftpc_block_no = 1;
@@ -367,17 +368,63 @@ int tftp_get(struct sockaddr_in *server, struct tftpc *client,
 			/* Lets get more data if data was successful or we got a duplicate packet. */
 			if ((stat == TFTPC_DATA_RX_SUCCESS) || (stat == TFTPC_DUPLICATE_DATA)) {
 
+recv:
 				/* Receive data from the server. */
 				stat = tftpc_recv(sock);
 
-				/* Response? */
-				server_response = getshort(tftpc_request_buffer);
+				/* There are two possibilities at this point.
+				 * - We got the data successfully.
+				 * - We timed out trying to get data.
+				 * The first case is Ok, but the second case needs special handling. Like before,
+				 * if we time out getting data, we will re-tx. However, in this case, we will re-tx
+				 * ack of the previous block. */
+				if (stat > 0) {
+
+					/* Log. */
+					LOG_INF("Recevied data of size: %d", stat);
+
+					/* Response? */
+					server_response = getshort(tftpc_request_buffer);
+				}
+				else {
+
+					/* Log. */
+					LOG_INF("Timed out while receiving data from the server: %d", stat);
+
+					/* Re-TX update. */
+					no_of_retransmists ++;
+
+					/* Should we re-tx? */
+					if (no_of_retransmists < TFTP_REQ_RETX) {
+
+						LOG_INF("Re-transmisting the ack and waiting for data again. ");
+
+						/* Bad News - We timed out. Lets send out an ack of the previous block. */
+						tftpc_send_ack(sock, tftpc_block_no);
+
+						goto recv;
+					}
+					else {
+						LOG_ERR("No more retransmits available. Exiting");
+						break;
+					}
+				}
 			}
+		}
+		else if (server_response == ERROR_OPCODE) {
+			/* The server responded with some errors here. Lets get to know about the specific
+			 * error and log it. Nothing else we can do here really and so should exit. */
+			LOG_ERR("tftp_get failure - Server returned: %d", getshort(tftpc_request_buffer + 2));
+
+			break;
 		}
 	} while (stat > 0);
 
-	/* Lets close out this socket before returning. */
-	return (stat = close(sock));
+	/* Close out this socket. */
+	close(sock);
+
+	/* Stat? */
+	return (stat);
 }
 
 /*
