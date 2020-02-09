@@ -206,6 +206,77 @@ int tftpc_process(int sock) {
 	return (TFTPC_UNKNOWN_FAILURE);
 }
 
+/* Name: tftp_send_request
+ * Description: This function sends out a request to the TFTP Server (Read / Write) and waits for a response.
+ * Once we get some response from the server, it is interpreted and ensured to be correct. If not, we keep on
+ * poking the server for data until we eventually give up.  */
+static int tftp_send_request(int sock, u8_t request,
+		                     const char *remote_file,  const char *mode) {
+
+	u8_t    no_of_retransmists = 0;
+	s32_t   stat;
+
+	/* Socket connection successfully - Create the Read Request Packet (RRQ). */
+	make_request(remote_file, mode, request);
+
+	do {
+
+		/* Send this request to the TFTP Server. */
+		stat = send(sock, tftpc_request_buffer, tftpc_request_size, 0);
+
+		/* Data sent successfully? */
+		if (stat > 0) {
+
+			/* We have been able to send the Read Request to the TFTP Server. The server will respond
+			 * to our message with data or error, And we need to handle these cases correctly.
+			 *
+			 * Lets try to get this data from the TFTP Server. */
+			stat = tftpc_recv(sock);
+
+			/* Lets check if we were able to get response from the server and if the response was Ok or not. */
+			if (stat > 0) {
+
+				/* Ok - We were able to get response of our read request from the TFTP Server.
+				 * Lets check and see what the TFTP Server has to say about our request. */
+				u16_t server_response = getshort(tftpc_request_buffer);
+
+				/* Did we get some err? */
+				if (server_response == ERROR_OPCODE) {
+
+					/* The server responded with some errors here. Lets get to know about the specific
+					 * error and log it. Nothing else we can do here really and so should exit. */
+					LOG_ERR("tftp_get failure - Server returned: %d", getshort(tftpc_request_buffer + 2));
+
+					break;
+				}
+
+				/* Did we get some data? */
+				if (server_response == DATA_OPCODE) {
+
+					/* Good News - TFTP Server responded with data. Lets talk to the server and
+					 * get all data. */
+					LOG_DBG("tftp_get success - Server returned: %d", getshort(tftpc_request_buffer + 2));
+
+					break;
+				}
+			}
+		}
+
+		/* No of times we had to re-tx this "request". */
+		no_of_retransmists ++;
+
+		/* Log this out. */
+		LOG_DBG("tftp_send_request was either unable to get data from the TFTP Server.");
+		LOG_DBG("Or failed to get any valid data.");
+		LOG_INF("no_of_retransmists = %d", no_of_retransmists);
+		LOG_INF("Are we re-transmitting: %s", (no_of_retransmists < TFTP_REQ_RETX) ? "yes": "no");
+
+	} while (no_of_retransmists < TFTP_REQ_RETX);
+
+	/* Status? */
+	return (stat);
+}
+
 /* Name: tftp_get
  * Description: This function gets "file" from the remote server. */
 int tftp_get(struct sockaddr_in *server, const char *remote_file,
@@ -232,11 +303,8 @@ int tftp_get(struct sockaddr_in *server, const char *remote_file,
 		return -errno;
 	}
 
-	/* Socket connection successfully - Create the Read Request Packet (RRQ). */
-	make_request(remote_file, mode, RRQ_OPCODE);
-
-	/* Send this request to the TFTP Server. */
-	stat = send(sock, tftpc_request_buffer, tftpc_request_size, 0);
+	/* Send out the request to the TFTP Server. */
+	stat = tftp_send_request(sock, RRQ_OPCODE, remote_file, mode);
 
 	/* Data sent successfully? */
 	if (stat > 0) {
@@ -272,6 +340,9 @@ int tftp_get(struct sockaddr_in *server, const char *remote_file,
 				}
 			}
 		} while (stat != TFTPC_OP_COMPLETED);
+	}
+	else {
+		LOG_ERR("TFTP Client failed to find the server. Exited with %d", stat);
 	}
 
 	/* Lets close out this socket before returning. */

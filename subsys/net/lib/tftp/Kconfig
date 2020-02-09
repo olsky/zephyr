@@ -4,11 +4,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 config TFTP_LIB
-	bool "Socket TFTP Library Support"
-	select NET_SOCKETS
-	select NET_SOCKETS_POSIX_NAMES
-	help
-	  Enable the Zephyr TFTP Library
+    bool "Socket TFTP Library Support"
+    select NET_SOCKETS
+    select NET_SOCKETS_POSIX_NAMES
+    help
+      Enable the Zephyr TFTP Library
 
 if TFTP_LIB
 
@@ -19,20 +19,30 @@ module-help=Enables tftp debug messages.
 source "subsys/net/Kconfig.template.log_config.net"
 
 config TFTPC_MAX_FILENAME_SIZE
-	int "Maximum size of the filename that we can get / put to the TFTP Server."
-	default 10
-	help
-	  Maximum size (defined in the number of characters) of each filename that we 
-	  can get or put to the TFTP Server. This is introduced to allow the user to scale up
-	  the size of request array that is not dynamically created (as we don't like dynamic 
-	  memory allocations).
-	  
+    int "Maximum size of the filename that we can get / put to the TFTP Server."
+    default 10
+    help
+      Maximum size (defined in the number of characters) of each filename that we 
+      can get or put to the TFTP Server. This is introduced to allow the user to scale up
+      the size of request array that is not dynamically created (as we don't like dynamic 
+      memory allocations).
+      
 config TFTPC_REQUEST_TIMEOUT
-	int "Maximum amount of time the TFTP Client will wait for a response from the server."
-	default 5
-	help
-	  Maximum amount of time (in seconds) that the TFTP Client will wait for data from the 
-	  TFTP Server. Once this time has elasped, the TFTP Client will assume that the Server 
-	  failed and close the connection.
-
+    int "Maximum amount of time the TFTP Client will wait for a response from the server."
+    default 5
+    help
+      Maximum amount of time (in seconds) that the TFTP Client will wait for data from the 
+      TFTP Server. Once this time has elasped, the TFTP Client will assume that the Server 
+      failed and close the connection.
+      
+config TFTPC_REQUEST_RETRANSMITS
+    int "Number of times the TFTP Client will retransmit the request and expect data from the server."
+    default 5
+    help
+      Once the TFTP Client sends out a request, it will wait TFTPC_REQUEST_TIMEOUT secs for the data 
+      to arrive from the TFTP Server. However, if it doesn't arrive within the given time we will 
+      re-transmit the request to the server in hopes that the server will respond within time to this 
+      request. This number dictates the number of times we will do re-tx of our request before giving up
+      and exiting. 
+      
 endif # TFTP_LIB
