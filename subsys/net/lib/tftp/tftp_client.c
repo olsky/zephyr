@@ -71,37 +71,36 @@ static inline void fillchar(u8_t * buf, u8_t data) {
 /* Name: make_rrq
  * Description: This function takes in a given list of parameters and returns a read request packet.
  *              This packet can be sent out directly to the TFTP server. */
-static inline void make_rrq(u8_t *tftpc_request_buffer, u32_t *tftpc_request_size,
-		                    const char *remote_file, const char *mode) {
+static inline void make_request(const char *remote_file, const char *mode, u8_t request_type) {
 
 	/* Populate the read request with the provided params. Note that this is created
 	 * per RFC1350. */
-	u32_t tmp;
 
-	/* Fill in the "Read" Opcode. Also keep tabs on the request size. */
-	fillshort(tftpc_request_buffer, RRQ_OPCODE);
-	tmp = 2;
+	/* Read Request? */
+	if (request_type == RRQ_OPCODE) {
+
+		/* Fill in the "Read" Opcode. Also keep tabs on the request size. */
+		fillshort(tftpc_request_buffer, RRQ_OPCODE);
+		tftpc_request_size = 2;
+	}
 
 	/* Copy in the name of the remote file, the file we need to get from the server.
 	 * Add an upper bound to ensure no buffers overflow. */
-	strncpy(tftpc_request_buffer + tmp, remote_file, TFTP_MAX_FILENAME_SIZE);
-	tmp += strlen(remote_file);
+	strncpy(tftpc_request_buffer + tftpc_request_size, remote_file, TFTP_MAX_FILENAME_SIZE);
+	tftpc_request_size += strlen(remote_file);
 
 	/* Fill in 0. */
-	fillchar(tftpc_request_buffer + tmp, 0x0);
-	tmp ++;
+	fillchar(tftpc_request_buffer + tftpc_request_size, 0x0);
+	tftpc_request_size ++;
 
 	/* Copy the mode of operation. For now, we only support "Octet" and the user should ensure that
 	 * this is the case. Otherwise we will run into problems. */
-	strncpy(tftpc_request_buffer + tmp, mode, TFTP_MAX_MODE_SIZE);
-	tmp += strlen(mode);
+	strncpy(tftpc_request_buffer + tftpc_request_size, mode, TFTP_MAX_MODE_SIZE);
+	tftpc_request_size += strlen(mode);
 
 	/* Fill in 0. */
-	fillchar(tftpc_request_buffer + tmp, 0x0);
-	tmp ++;
-
-	/* Save tmp into the provided pointer. */
-	*tftpc_request_size = tmp;
+	fillchar(tftpc_request_buffer + tftpc_request_size, 0x0);
+	tftpc_request_size ++;
 }
 
 /* Name: make_wrq
@@ -234,7 +233,7 @@ int tftp_get(struct sockaddr_in *server, const char *remote_file,
 	}
 
 	/* Socket connection successfully - Create the Read Request Packet (RRQ). */
-	make_rrq((u8_t *) tftpc_request_buffer, &tftpc_request_size, remote_file, mode);
+	make_request(remote_file, mode, RRQ_OPCODE);
 
 	/* Send this request to the TFTP Server. */
 	stat = send(sock, tftpc_request_buffer, tftpc_request_size, 0);
@@ -275,7 +274,8 @@ int tftp_get(struct sockaddr_in *server, const char *remote_file,
 		} while (stat != TFTPC_OP_COMPLETED);
 	}
 
-	return (stat);
+	/* Lets close out this socket before returning. */
+	return (stat = close(sock));
 }
 
 /*
