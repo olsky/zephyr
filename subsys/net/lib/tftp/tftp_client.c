@@ -7,18 +7,17 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(tftp_client, LOG_LEVEL_DBG);
 
-/* TFTP Client standard header file. */
+/* Public / Internal TFTP header file. */
+#include <net/tftp.h>
 #include "tftp_client.h"
 
 /* TFTP Request Buffer / Size variables. */
-u8_t   tftpc_request_buffer[TFTPC_MAX_BUF_SIZE];
-u32_t  tftpc_request_size;
+static u8_t   tftpc_request_buffer[TFTPC_MAX_BUF_SIZE];
+static u32_t  tftpc_request_size;
 
 /* TFTP Request block number property. */
 static u32_t  tftpc_block_no;
-
-u8_t   user_buf[1024];
-u32_t  user_buf_index = 0;
+static u32_t  tftpc_index;
 
 /* Global timeval structure indicating the timeout interval for all TFTP transactions. */
 static struct timeval tftpc_timeout = {
@@ -112,7 +111,7 @@ static inline void make_wrq(char *request, const char *remote_file, const char *
 /* Name: tftpc_send_ack
  * Description: This function sends an Ack to the TFTP Server (in response to the data sent by the
  * Server). */
-int tftpc_send_ack(int sock, int block) {
+static inline int tftpc_send_ack(int sock, int block) {
 
 	u8_t tmp[4];
 
@@ -129,7 +128,7 @@ int tftpc_send_ack(int sock, int block) {
 /* Name: tftpc_recv
  * Description: This function tries to get data from the TFTP Server (either response
  * or data). Times out eventually. */
-int tftpc_recv(int sock) {
+static int tftpc_recv(int sock) {
 
 	int     stat;
 
@@ -156,7 +155,7 @@ int tftpc_recv(int sock) {
 /* Name: tftpc_process
  * Description: This function will process the data received from the TFTP Server (a file or part of the file)
  * and place it in the user buffer. */
-int tftpc_process(int sock) {
+static int tftpc_process(int sock, struct tftpc *client) {
 
 	u16_t block_no;
 
@@ -173,11 +172,13 @@ int tftpc_process(int sock) {
 		 *
 		 * Note that the first 4 bytes of the "response" is the TFTP header. Everything else is the
 		 * user buffer. */
-		memcpy(user_buf + user_buf_index, tftpc_request_buffer + TFTP_HEADER_SIZE,
+		memcpy(client->user_buf + tftpc_index, tftpc_request_buffer + TFTP_HEADER_SIZE,
 				         tftpc_request_size - TFTP_HEADER_SIZE);
 
-		/* User buffer index to be updated. */
-		user_buf_index += (tftpc_request_size - TFTP_HEADER_SIZE);
+		/* User buffer index to be updated.
+		 * TODO: The index here might overflow, given that the user hadn't provided this much buffer,
+		 * we need to handle this appropriately instead of generating buffer overflows. */
+		tftpc_index += (tftpc_request_size - TFTP_HEADER_SIZE);
 
 		/* Now we are in a position to ack this data. */
 		tftpc_send_ack(sock, block_no);
@@ -215,6 +216,7 @@ static int tftp_send_request(int sock, u8_t request,
 
 	u8_t    no_of_retransmists = 0;
 	s32_t   stat;
+	u16_t   server_response    = -1;
 
 	/* Socket connection successfully - Create the Read Request Packet (RRQ). */
 	make_request(remote_file, mode, request);
@@ -238,7 +240,7 @@ static int tftp_send_request(int sock, u8_t request,
 
 				/* Ok - We were able to get response of our read request from the TFTP Server.
 				 * Lets check and see what the TFTP Server has to say about our request. */
-				u16_t server_response = getshort(tftpc_request_buffer);
+				server_response = getshort(tftpc_request_buffer);
 
 				/* Did we get some err? */
 				if (server_response == ERROR_OPCODE) {
@@ -274,18 +276,20 @@ static int tftp_send_request(int sock, u8_t request,
 	} while (no_of_retransmists < TFTP_REQ_RETX);
 
 	/* Status? */
-	return (stat);
+	return (server_response);
 }
 
 /* Name: tftp_get
  * Description: This function gets "file" from the remote server. */
-int tftp_get(struct sockaddr_in *server, const char *remote_file,
-		     const char *local_file, const char *mode) {
+int tftp_get(struct sockaddr_in *server, struct tftpc *client,
+		     const char *remote_file, const char *mode) {
 	int     stat;
 	int     sock;
+	u16_t   server_response;
 
 	/* Re-init the global "block number" variable. */
 	tftpc_block_no = 1;
+	tftpc_index    = 0;
 
 	/* Create Socket for TFTP. Use IPv4 / UDP as L4 / L3 communication layers. */
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -304,46 +308,27 @@ int tftp_get(struct sockaddr_in *server, const char *remote_file,
 	}
 
 	/* Send out the request to the TFTP Server. */
-	stat = tftp_send_request(sock, RRQ_OPCODE, remote_file, mode);
+	server_response = tftp_send_request(sock, RRQ_OPCODE, remote_file, mode);
 
-	/* Data sent successfully? */
-	if (stat > 0) {
+	do {
+		/* Did the server respond with data? */
+		if (server_response == DATA_OPCODE) {
 
-		do {
-			/* We have been able to send the Read Request to the TFTP Server. The server will respond
-			 * to our message with data or error, And we need to handle these cases correctly.
-			 *
-			 * Lets try to get this data from the TFTP Server. */
-			stat = tftpc_recv(sock);
+			/* Good News - TFTP Server responded with data. Lets talk to the server and
+			 * get all data. */
+			stat = tftpc_process(sock, client);
 
-			/* Were we able to receive data successfully? Or did we timeout? */
-			if (stat > 0) {
+			/* Lets get more data if data was successful or we got a duplicate packet. */
+			if ((stat == TFTPC_DATA_RX_SUCCESS) || (stat == TFTPC_DUPLICATE_DATA)) {
 
-				/* Ok - We were able to get response of our read request from the TFTP Server.
-				 * Lets check and see what the TFTP Server has to say about our request. */
-				u16_t server_response = getshort(tftpc_request_buffer);
+				/* Receive data from the server. */
+				stat = tftpc_recv(sock);
 
-				/* Did we get some data? */
-				if (server_response == DATA_OPCODE) {
-
-					/* Good News - TFTP Server responded with data. Lets talk to the server and
-					 * get all data. */
-					stat = tftpc_process(sock);
-				}
-
-				/* Did we get some err? */
-				if (server_response == ERROR_OPCODE) {
-
-					/* The server responded with some errors here. Lets get to know about the specific
-					 * error and log it. Nothing else we can do here really and so should exit. */
-					LOG_ERR("tftp_get failure - Server returned: %d", getshort(tftpc_request_buffer + 2));
-				}
+				/* Response? */
+				server_response = getshort(tftpc_request_buffer);
 			}
-		} while (stat != TFTPC_OP_COMPLETED);
-	}
-	else {
-		LOG_ERR("TFTP Client failed to find the server. Exited with %d", stat);
-	}
+		}
+	} while (stat > 0);
 
 	/* Lets close out this socket before returning. */
 	return (stat = close(sock));
