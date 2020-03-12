@@ -1,4 +1,8 @@
+#
+# 2018, 2019, 2020 by innblue
+#
 # innblue feather board v1.1
+#
 
 CONFIG_ARM=y
 CONFIG_SOC_FAMILY_NRF=y

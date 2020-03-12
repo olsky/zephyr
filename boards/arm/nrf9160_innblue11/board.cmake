@@ -1,3 +1,6 @@
+#
+# 2018, 2019, 2020 by innblue > Oleh Lozynskyy
+#
 # SPDX-License-Identifier: Apache-2.0
 
 board_runner_args(nrfjprog "--nrf-family=NRF91")

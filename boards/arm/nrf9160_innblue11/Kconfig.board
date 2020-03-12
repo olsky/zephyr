@@ -1,6 +1,6 @@
 # Kconfig - nRF9160 innblue v1.1 board configuration
 #
-# Copyright (c) innblue
+# 2018, 2019, 2020 by innblue
 #
 
 if SOC_NRF9160_SICA

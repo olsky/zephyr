@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 innblue
+ * 2018, 2019, 2020 by innblue
  *
  *
  * i2c: hts221   0x5f int 3
@@ -101,7 +101,14 @@
 
 };
 
+&uart2 {
+	current-speed = <115200>;
+	tx-pin = <18>;
+	rx-pin = <19>;
+};
+
 &i2c2 {
+	compatible = "nordic,nrf-twim";
 	status = "okay";
 	sda-pin = <25>;
 	scl-pin = <26>;
@@ -127,14 +134,14 @@
 	lps22hb-press@5c {
 		compatible = "st,lps22hb-press";
 		reg = <0x5c>;
-		irq-gpios = <&gpio0 2 0>;
+		/* irq-gpios = <&gpio0 2 0>; */
 		label = "LPS22HB";
 	};
 	
 	ccs811: ccs811@5a {
 		compatible = "ams,ccs811";
 		reg = <0x5a>;
-		drdy-gpios = <&gpio0 8 GPIO_INT_ACTIVE_HIGH>;
+		/*drdy-gpios = <&gpio0 8 GPIO_INT_ACTIVE_HIGH>;*/
 		/*irq-gpios = <&gpio0 8 0>;*/
 		label = "CCS811";
 	};

@@ -1,6 +1,6 @@
 # Kconfig - nRF91 innblue v1.1 board configuration
 #
-# Copyright (c) 2018 innblue
+# 2018, 2019, 2020 by innblue
 
 if BOARD_NRF9160_INNBLUE11 || BOARD_NRF9160_INNBLUE11NS
 
