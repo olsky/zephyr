@@ -1,14 +1,12 @@
 /*
- * 2018, 2019, 2020 by innblue
+ * Copyright (c) 2020 InnBlue
  *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 
 #include <init.h>
 #include <drivers/gpio.h>
 
-// always on: #define VDD_3V3_PWR_CTRL_GPIO_PIN  12   // ENABLE_3V3_SENSOR --> i2c sensors
 #define VDD_5V0_PWR_CTRL_GPIO_PIN  21   // ENABLE_5V0_BOOST  --> speed sensor
 
 struct pwr_ctrl_cfg {
@@ -36,33 +34,6 @@ static int pwr_ctrl_init(struct device *dev)
     return 0;
 }
 
-/*
- * The a sensor is connected to the Sensor_VDD power rail, which is downstream
- * from the VDD power rail. Both of these power rails need to be enabled before
- * the sensor driver init can be performed. The VDD rail also has to be powered up
- * before the Sensor_VDD rail. These checks are to enforce the power up sequence
- * constraints.
- */
-
-/* ??? 
-#if CONFIG_BOARD_VDD_PWR_CTRL_INIT_PRIORITY <= CONFIG_GPIO_NRF_INIT_PRIORITY
-#error GPIO_NRF_INIT_PRIORITY must be lower than \
-    BOARD_VDD_PWR_CTRL_INIT_PRIORITY
-#endif
-*/
-
-
-/*
-static const struct pwr_ctrl_cfg vdd_3v3_pwr_ctrl_cfg = {
-    .port = DT_GPIO_P0_DEV_NAME,
-    .pin  = VDD_3V3_PWR_CTRL_GPIO_PIN,
-};
-
-DEVICE_INIT(vdd_3v3_pwr_ctrl_init, "", pwr_ctrl_init, NULL, &vdd_3v3_pwr_ctrl_cfg,
-        POST_KERNEL, 70);
-*/
-        
-        
 static const struct pwr_ctrl_cfg vdd_5v0_pwr_ctrl_cfg = {
     .port = DT_GPIO_P0_DEV_NAME,
     .pin  = VDD_5V0_PWR_CTRL_GPIO_PIN,

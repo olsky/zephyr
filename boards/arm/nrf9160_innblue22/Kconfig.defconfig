@@ -1,11 +1,7 @@
-#
-# Kconfig - nRF91 innblue 22 board configuration
-#
-# 2018, 2019, 2020 by innblue > olsky
-#
-# SPDX-License-Identifier: Apache-2.0
-#
+# nRF9160 innblue V2.2 board configuration
 
+# Copyright (c) 2020 InnBlue
+# SPDX-License-Identifier: Apache-2.0
 
 if BOARD_NRF9160_INNBLUE22 || BOARD_NRF9160_INNBLUE22NS
 

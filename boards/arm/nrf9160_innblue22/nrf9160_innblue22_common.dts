@@ -1,47 +1,7 @@
 /*
- * 2018, 2019, 2020 by innblue > Oleh Lozynskyy
+ * Copyright (c) 2020 InnBlue
  *
  * SPDX-License-Identifier: Apache-2.0
- *
- *
- * spi3  sck: 24 mosi: 23 miso: 22
- *
- * i2c SDA: 25 SCL: 26 (pullup 4k7)
- *
- * i2c: hts221     0x5f int 3     // U8 - relative humidity and temperature
- *      lps22hb    0x5c int 2     // U7 - piezoresistive absolute pressure
- *      ccs811     0x5a int 8     // U1 - air quality, gas sensor, Volatile Organic Compounds (VOCs), 
- *      lis2dh     0x19 int 0,1   // U6 - accelerometer
- *      bme680     0x76           // U5 - Air quality measurement: pressure, temp, rel hum, gas VOC
- *      atecc608A  0x??           // U3 - CryptoChip, ECDH, ECDSA. storage 16keys
- *      bq25892    0x6a           // u4 - Qi charger
- *      bq27421    0x55           // U5 - fuel Gauge
- *
- * Enable Sensors 3.3V -> 12  // U9 - 3v3 sensor rail
- *
- * Mode - button on 31
- * RGB LED on 5,6,7 (b,g,r)
- * Mode LED on 4
- * extra LEN on 9
- *
- * p18_a5 -> NTC  (res to gnd: 4k7)
- * p19_a6 -> enable NTC
- *
- * p27 is on ccs811 nRESET
- * p28 is on ccs811 nWAKE
- *
- * Enable 5V Boost on 21   // U11 5v0 Reg
- * Speed Sensor on 13 (A0) // 
- *
- * Battery Level ADC on 20 (A7)
- *
- * UART0 rx: 30 tx: 29
- * UART1 rx: 15 tx: 14
- *
- * avail A pins: 14,15, 16,17
- * 
- * free:  16, 17,  
- *
  */
 
 / {
