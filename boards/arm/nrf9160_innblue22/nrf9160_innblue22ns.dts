@@ -1,0 +1,18 @@
+/*
+ * 2018, 2019, 2020 by innblue
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ */
+
+/dts-v1/;
+#include <nordic/nrf9160ns_sica.dtsi>
+#include "nrf9160_innblue22_common.dts"
+
+/ {
+	chosen {
+		zephyr,flash = &flash0;
+		zephyr,sram = &sram0_ns;
+		zephyr,code-partition = &slot0_ns_partition;
+	};
+};

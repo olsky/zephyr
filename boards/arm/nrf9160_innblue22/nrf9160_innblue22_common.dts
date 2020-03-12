@@ -1,0 +1,309 @@
+/*
+ * 2018, 2019, 2020 by innblue > Oleh Lozynskyy
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ *
+ * spi3  sck: 24 mosi: 23 miso: 22
+ *
+ * i2c SDA: 25 SCL: 26 (pullup 4k7)
+ *
+ * i2c: hts221     0x5f int 3     // U8 - relative humidity and temperature
+ *      lps22hb    0x5c int 2     // U7 - piezoresistive absolute pressure
+ *      ccs811     0x5a int 8     // U1 - air quality, gas sensor, Volatile Organic Compounds (VOCs), 
+ *      lis2dh     0x19 int 0,1   // U6 - accelerometer
+ *      bme680     0x76           // U5 - Air quality measurement: pressure, temp, rel hum, gas VOC
+ *      atecc608A  0x??           // U3 - CryptoChip, ECDH, ECDSA. storage 16keys
+ *      bq25892    0x6a           // u4 - Qi charger
+ *      bq27421    0x55           // U5 - fuel Gauge
+ *
+ * Enable Sensors 3.3V -> 12  // U9 - 3v3 sensor rail
+ *
+ * Mode - button on 31
+ * RGB LED on 5,6,7 (b,g,r)
+ * Mode LED on 4
+ * extra LEN on 9
+ *
+ * p18_a5 -> NTC  (res to gnd: 4k7)
+ * p19_a6 -> enable NTC
+ *
+ * p27 is on ccs811 nRESET
+ * p28 is on ccs811 nWAKE
+ *
+ * Enable 5V Boost on 21   // U11 5v0 Reg
+ * Speed Sensor on 13 (A0) // 
+ *
+ * Battery Level ADC on 20 (A7)
+ *
+ * UART0 rx: 30 tx: 29
+ * UART1 rx: 15 tx: 14
+ *
+ * avail A pins: 14,15, 16,17
+ * 
+ * free:  16, 17,  
+ *
+ */
+
+/ {
+	model = "innblue v22 Dev Kit";
+	compatible = "innblue,innblue22", "nordic,nrf9160-sica", "nordic,nrf9160";
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,uart-mcumgr = &uart0;
+	};
+
+	
+	leds {
+		compatible = "gpio-leds";
+		red_led: led_1 {
+			gpios = <&gpio0 7 0>;
+			label = "RGB red channel";
+		};
+		green_led: led_2 {
+			gpios = <&gpio0 6 0>;
+			label = "RGB green channel";
+		};
+		blue_led: led_3 {
+			gpios = <&gpio0 5 0>;
+			label = "RGB blue channel";
+		};
+
+		mode_led: led_4 {
+			gpios = <&gpio0 4 0>;
+			label = "mode red channel";
+		};
+
+		/* ARE on PWM!
+		led0: led_0 {
+			gpios = <&gpio0 5 GPIO_INT_ACTIVE_LOW>;
+			label = "Blue  LED 1";
+		};
+		led1: led_1 {
+			gpios = <&gpio0 6 GPIO_INT_ACTIVE_LOW>;
+			label = "Green LED 2";
+		};
+		led2: led_2 {
+			gpios = <&gpio0 7 GPIO_INT_ACTIVE_LOW>;
+			label = "Red   LED 3";
+		};
+		
+		led3: led_3 {
+			gpios = <&gpio0 4 GPIO_INT_ACTIVE_LOW>;
+			label = "Red   LED Mode";
+		};
+		*/
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+
+		button0: button_0 {
+			gpios = <&gpio0 31 GPIO_PUD_PULL_UP>;
+			label = "Button 0";
+		};
+	};
+
+	/* These aliases are provided for compatibility with samples */
+	aliases {
+		led0 = &red_led;
+		led1 = &green_led;
+		led2 = &blue_led;
+
+		led3 = &mode_led;
+		/*
+		led0 = &led0;
+		led1 = &led1;
+		led2 = &led2;
+		*/
+		/* led3 = &led3; -> on pwm */
+		sw0  = &button0;
+		rgb-pwm  = &pwm0;
+		mode-pwm = &pwm1;
+	};
+};
+
+&adc {
+	status = "okay";
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+	tx-pin = <29>;
+	rx-pin = <30>;
+
+};
+
+&uart1 {
+	status = "okay";
+	current-speed = <115200>;
+	tx-pin = <14>;
+	rx-pin = <15>;
+};
+
+&uart2 {
+	current-speed = <115200>;
+	tx-pin = <18>;
+	rx-pin = <19>;
+};
+
+
+&i2c2 {
+	compatible = "nordic,nrf-twim";
+	status = "okay";
+	sda-pin = <25>;
+	scl-pin = <26>;
+	
+  	clock-frequency = <I2C_BITRATE_FAST>; 
+/*	clock-frequency = <I2C_BITRATE_STANDARD>; */ 
+	
+	bq27421@55 {
+		compatible = "ti,bq274xx";
+		label = "BQ274XX";
+		reg = <0x55>;
+	};
+
+	lis2dh12-accel@19 {
+		compatible = "st,lis2dh";
+		reg = <0x19>;
+		irq-gpios = <&gpio0 0 0>, <&gpio0 1 0>;
+		label = "LIS2DH12-ACCEL";
+	};	
+	
+	
+	hts221@5f {
+		compatible = "st,hts221";
+		reg = <0x5f>;
+		/* irq-gpios = <&gpio0 3 0>; */
+		drdy-gpios = <&gpio0 3 GPIO_INT_ACTIVE_HIGH>;
+		label = "HTS221";
+	};
+
+	lps22hb-press@5c {
+		compatible = "st,lps22hb-press";
+		reg = <0x5c>;
+		/* irq-gpios = <&gpio0 2 0>; */
+		label = "LPS22HB";
+	};
+	
+	ccs811: ccs811@5a {
+		compatible = "ams,ccs811";
+		reg = <0x5a>;
+		/*drdy-gpios = <&gpio0 8 GPIO_INT_ACTIVE_HIGH>;*/
+		/*irq-gpios = <&gpio0 8 0>;*/
+		label = "CCS811";
+	};
+
+	bme680@76 {
+		compatible = "bosch,bme680";
+		label = "BME680";
+		reg = <0x76>;
+	};
+
+
+};
+
+&pwm0 {
+	status = "okay";
+	ch0-pin = <5>;
+	ch1-pin = <6>;
+	ch2-pin = <7>;
+	ch0-inverted;
+	ch1-inverted;
+	ch2-inverted;
+	/* board v2 has it ok: ch0-inverted; */
+};
+
+&pwm1 {
+	status = "okay";
+	ch0-pin = <4>;
+	ch0-inverted;
+	ch1-pin = <9>;
+	ch1-inverted;
+	/* board v2 has it ok: ch0-inverted; */
+};
+
+
+
+&spi3 {
+	status = "okay";
+	sck-pin = <24>;
+	mosi-pin = <23>;
+	miso-pin = <22>;
+};
+
+&timer0 {
+	status = "okay";
+};
+
+&timer1 {
+	status = "okay";
+};
+
+&timer2 {
+	status = "okay";
+};
+
+&flash0 {
+	/*
+	 * For more information, see:
+	 * http://docs.zephyrproject.org/latest/guides/dts/index.html#flash-partitions
+	 */
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x10000>;
+		};
+		slot0_partition: partition@10000 {
+			label = "image-0";
+		};
+		slot0_ns_partition: partition@40000 {
+			label = "image-0-nonsecure";
+		};
+		slot1_partition: partition@80000 {
+			label = "image-1";
+		};
+		slot1_ns_partition: partition@b0000 {
+			label = "image-1-nonsecure";
+		};
+		scratch_partition: partition@f0000 {
+			label = "image-scratch";
+			reg = <0x000f0000 0xa000>;
+		};
+		storage_partition: partition@fa000 {
+			label = "storage";
+			reg = <0x000fa000 0x00006000>;
+		};
+	};
+};
+
+/ {
+	/* SRAM allocated and used by the BSD library */
+	sram0_bsd: memory@20010000 {
+		device_type = "memory";
+		compatible = "mmio-sram";
+	};
+
+	/* SRAM allocated to the Non-Secure image */
+	sram0_ns: memory@20020000 {
+		device_type = "memory";
+		compatible = "mmio-sram";
+	};
+};
+
+/* Include partition configuration file */
+#include "nrf9160_innblue22_partition_conf.dts"
