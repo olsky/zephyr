@@ -34,26 +34,6 @@
 			gpios = <&gpio0 4 0>;
 			label = "mode red channel";
 		};
-
-		/* ARE on PWM!
-		led0: led_0 {
-			gpios = <&gpio0 5 GPIO_INT_ACTIVE_LOW>;
-			label = "Blue  LED 1";
-		};
-		led1: led_1 {
-			gpios = <&gpio0 6 GPIO_INT_ACTIVE_LOW>;
-			label = "Green LED 2";
-		};
-		led2: led_2 {
-			gpios = <&gpio0 7 GPIO_INT_ACTIVE_LOW>;
-			label = "Red   LED 3";
-		};
-		
-		led3: led_3 {
-			gpios = <&gpio0 4 GPIO_INT_ACTIVE_LOW>;
-			label = "Red   LED Mode";
-		};
-		*/
 	};
 
 	buttons {
@@ -70,14 +50,7 @@
 		led0 = &red_led;
 		led1 = &green_led;
 		led2 = &blue_led;
-
 		led3 = &mode_led;
-		/*
-		led0 = &led0;
-		led1 = &led1;
-		led2 = &led2;
-		*/
-		/* led3 = &led3; -> on pwm */
 		sw0  = &button0;
 		rgb-pwm  = &pwm0;
 		mode-pwm = &pwm1;
@@ -125,7 +98,6 @@
 	scl-pin = <26>;
 	
   	clock-frequency = <I2C_BITRATE_FAST>; 
-/*	clock-frequency = <I2C_BITRATE_STANDARD>; */ 
 	
 	bq27421@55 {
 		compatible = "ti,bq274xx";
@@ -144,7 +116,6 @@
 	hts221@5f {
 		compatible = "st,hts221";
 		reg = <0x5f>;
-		/* irq-gpios = <&gpio0 3 0>; */
 		drdy-gpios = <&gpio0 3 GPIO_INT_ACTIVE_HIGH>;
 		label = "HTS221";
 	};
@@ -152,15 +123,12 @@
 	lps22hb-press@5c {
 		compatible = "st,lps22hb-press";
 		reg = <0x5c>;
-		/* irq-gpios = <&gpio0 2 0>; */
 		label = "LPS22HB";
 	};
 	
 	ccs811: ccs811@5a {
 		compatible = "ams,ccs811";
 		reg = <0x5a>;
-		/*drdy-gpios = <&gpio0 8 GPIO_INT_ACTIVE_HIGH>;*/
-		/*irq-gpios = <&gpio0 8 0>;*/
 		label = "CCS811";
 	};
 
@@ -181,7 +149,6 @@
 	ch0-inverted;
 	ch1-inverted;
 	ch2-inverted;
-	/* board v2 has it ok: ch0-inverted; */
 };
 
 &pwm1 {
@@ -190,7 +157,6 @@
 	ch0-inverted;
 	ch1-pin = <9>;
 	ch1-inverted;
-	/* board v2 has it ok: ch0-inverted; */
 };
 
 
