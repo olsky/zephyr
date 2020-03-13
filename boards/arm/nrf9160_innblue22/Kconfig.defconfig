@@ -8,33 +8,22 @@ if BOARD_NRF9160_INNBLUE22 || BOARD_NRF9160_INNBLUE22NS
 config BOARD
 	default "nrf9160_innblue22"
 
-if ADC
-
 config ADC_0
 	default y
-
-endif # ADC
-
-if I2C
+	depends on ADC
 
 config I2C_2
 	default y
-
-endif # I2C
-
-if PWM
+	depends on I2C
 
 config PWM_0
 	default y
-
-endif # PWM
-
-if SPI
+	depends on PWM
 
 config SPI_3
 	default y
+	depends on SPI
 
-endif # SPI
 
 # For the secure version of the board the firmware is linked at the beginning
 # of the flash, or into the code-partition defined in DT if it is intended to
