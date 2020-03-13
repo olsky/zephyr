@@ -112,7 +112,6 @@
 		label = "LIS2DH12-ACCEL";
 	};	
 	
-	
 	hts221@5f {
 		compatible = "st,hts221";
 		reg = <0x5f>;
