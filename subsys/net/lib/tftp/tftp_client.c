@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 bwasim
+ * Copyright (c) 2020 InnBlue
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,6 +18,12 @@ static u32_t  tftpc_request_size;
 /* TFTP Request block number property. */
 static u32_t  tftpc_block_no;
 static u32_t  tftpc_index;
+
+/* Default TFTP Server (the user can provide an override via API). */
+static struct sockaddr_in def_srv = {
+	.sin_family = AF_INET,
+	.sin_port   = htons(CONFIG_TFTPC_DEFAULT_SERVER_PORT)
+};
 
 /* Global timeval structure indicating the timeout interval for all TFTP transactions. */
 static struct timeval tftpc_timeout = {
@@ -325,12 +331,29 @@ static int tftp_send_request(int sock, u8_t request,
 	return (server_response);
 }
 
+static inline s8_t tftp_connect(s32_t sock, struct sockaddr_in *server) {
+
+	/* If the server information is not provided by the user, we
+	 * have to use the default server. */
+	if (server == NULL) {
+
+		/* Have to use the default server. Populate the IP address. */
+		inet_pton(AF_INET, CONFIG_TFTPC_DEFAULT_SERVER_IP, &def_srv.sin_addr);
+
+		/* Update the pointer. */
+		server = &def_srv;
+	}
+
+	/* Connect with the TFTP Server. */
+	return (connect(sock, (struct sockaddr *) server, sizeof(struct sockaddr_in)));
+}
+
 /* Name: tftp_get
  * Description: This function gets "file" from the remote server. */
 int tftp_get(struct sockaddr_in *server, struct tftpc *client,
 		     const char *remote_file, const char *mode) {
-	int     stat;
-	int     sock;
+	s32_t   stat;
+	s32_t   sock;
 	u16_t   server_response;
 	u8_t    no_of_retransmists = 0;
 
@@ -348,7 +371,7 @@ int tftp_get(struct sockaddr_in *server, struct tftpc *client,
 	}
 
 	/* Connect with the address.  */
-	stat = connect(sock, (struct sockaddr *) server, sizeof(struct sockaddr_in));
+	stat = tftp_connect(sock, server);
 	if (stat < 0) {
 		LOG_ERR("Cannot connect to UDP remote (IPv4): %d", errno);
 		return -errno;
