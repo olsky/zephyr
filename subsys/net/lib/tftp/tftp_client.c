@@ -39,7 +39,8 @@ fd_set readfds;
 fd_set workfds;
 int fdnum;
 
-static int pollfds_add(int fd ) {
+static int pollfds_add(int fd)
+{
 
 	FD_SET(fd, &readfds);
 
@@ -52,14 +53,16 @@ static int pollfds_add(int fd ) {
 
 /* Name: fillshort
  * Description: This function fills the provided u16_t buffer into a u8_t buffer array. */
-static inline void fillshort(u8_t *buf, u16_t data) {
+static inline void fillshort(u8_t *buf, u16_t data)
+{
 	buf[0] = (data >> 8) & 0xFF;
 	buf[1] = (data >> 0) & 0xFF;
 }
 
 /* Name: getshort
  * Description: This function gets u16_t buffer into a u8_t buffer array. */
-static inline u16_t getshort(u8_t *buf) {
+static inline u16_t getshort(u8_t *buf)
+{
 	u16_t   tmp;
 
 	/* Create this short number. */
@@ -72,14 +75,18 @@ static inline u16_t getshort(u8_t *buf) {
 
 /* Name: fillchar
  * Description: This function fills the provided u8_t buffer into a u8_t buffer array. */
-static inline void fillchar(u8_t * buf, u8_t data) {
+static inline void fillchar(u8_t * buf, u8_t data)
+{
 	buf[0] = data;
 }
 
 /* Name: make_rrq
  * Description: This function takes in a given list of parameters and returns a read request packet.
  *              This packet can be sent out directly to the TFTP server. */
-static inline void make_request(const char *remote_file, const char *mode, u8_t request_type) {
+static inline void make_request(const char *remote_file, const char *mode, u8_t request_type)
+{
+	/* Default Mode. */
+	const char def_mode[] = "octet";
 
 	/* Populate the read request with the provided params. Note that this is created
 	 * per RFC1350. */
@@ -101,6 +108,10 @@ static inline void make_request(const char *remote_file, const char *mode, u8_t 
 	fillchar(tftpc_request_buffer + tftpc_request_size, 0x0);
 	tftpc_request_size ++;
 
+	/* Default to "Octet" if mode not specified. */
+	if (mode == NULL)
+		mode = def_mode;
+
 	/* Copy the mode of operation. For now, we only support "Octet" and the user should ensure that
 	 * this is the case. Otherwise we will run into problems. */
 	strncpy(tftpc_request_buffer + tftpc_request_size, mode, TFTP_MAX_MODE_SIZE);
@@ -114,14 +125,15 @@ static inline void make_request(const char *remote_file, const char *mode, u8_t 
 /* Name: make_wrq
  * Description: This function takes in a given list of parameters and returns a write request packet.
  *              This packet can be sent out directly to the TFTP server. */
-static inline void make_wrq(char *request, const char *remote_file, const char *mode) {
+static inline void make_wrq(char *request, const char *remote_file, const char *mode)
+{
 }
 
 /* Name: tftpc_send_ack
  * Description: This function sends an Ack to the TFTP Server (in response to the data sent by the
  * Server). */
-static inline int tftpc_send_ack(int sock, int block) {
-
+static inline int tftpc_send_ack(int sock, int block)
+{
 	u8_t tmp[4];
 
 	LOG_INF("Client acking Block Number: %d", block);
@@ -136,8 +148,8 @@ static inline int tftpc_send_ack(int sock, int block) {
 
 /* Name: tftpc_send_err
  * Description: This function sends an Error report to the TFTP Server. */
-static inline int tftpc_send_err(int sock, int err_code, char *err_string) {
-
+static inline int tftpc_send_err(int sock, int err_code, char *err_string)
+{
 	LOG_ERR("Client Error. Sending code: %d(%s)", err_code, err_string);
 
 	/* Fill in the "Err" Opcode and the actual error code. */
@@ -156,8 +168,8 @@ static inline int tftpc_send_err(int sock, int err_code, char *err_string) {
 /* Name: tftpc_recv
  * Description: This function tries to get data from the TFTP Server (either response
  * or data). Times out eventually. */
-static int tftpc_recv(int sock) {
-
+static int tftpc_recv(int sock)
+{
 	int     stat;
 
 	/* Enable select on the socket. */
@@ -183,8 +195,8 @@ static int tftpc_recv(int sock) {
 /* Name: tftpc_process
  * Description: This function will process the data received from the TFTP Server (a file or part of the file)
  * and place it in the user buffer. */
-static int tftpc_process(int sock, struct tftpc *client) {
-
+static int tftpc_process(int sock, struct tftpc *client)
+{
 	u16_t    block_no;
 	u32_t    cpy_size;
 	bool     send_ack = true;
@@ -267,8 +279,8 @@ static int tftpc_process(int sock, struct tftpc *client) {
  * Once we get some response from the server, it is interpreted and ensured to be correct. If not, we keep on
  * poking the server for data until we eventually give up.  */
 static int tftp_send_request(int sock, u8_t request,
-		                     const char *remote_file,  const char *mode) {
-
+		                     const char *remote_file,  const char *mode)
+{
 	u8_t    no_of_retransmists = 0;
 	s32_t   stat;
 	u16_t   server_response    = -1;
@@ -336,8 +348,8 @@ static int tftp_send_request(int sock, u8_t request,
 
 /* Name: tftp_connect
  * Description: This function connects with the TFTP Server. */
-static inline s8_t tftp_connect(s32_t sock, struct sockaddr_in *server) {
-
+static inline s8_t tftp_connect(s32_t sock, struct sockaddr_in *server)
+{
 	/* If the server information is not provided by the user, we
 	 * have to use the default server. */
 	if (server == NULL) {
@@ -356,8 +368,10 @@ static inline s8_t tftp_connect(s32_t sock, struct sockaddr_in *server) {
 /* Name: tftp_get
  * Description: This function gets "file" from the remote server. */
 int tftp_get(struct sockaddr_in *server, struct tftpc *client,
-		     const char *remote_file, const char *mode) {
-	s32_t   stat;
+		     const char *remote_file, const char *mode)
+{
+
+	s32_t   stat               = TFTPC_UNKNOWN_FAILURE;
 	s32_t   sock;
 	u16_t   server_response;
 	u8_t    no_of_retransmists = 0;
