@@ -40,4 +40,20 @@
 #define TFTPC_BUFFER_OVERFLOW    -2
 #define TFTPC_UNKNOWN_FAILURE    -3
 
+/* Name: extract_u16
+ * Description: This function gets u16_t buffer into a u8_t buffer array. */
+static inline u16_t extract_u16(u8_t *buf)
+{
+	/* Return it to the caller. */
+	return ((buf[0] << 8) | buf[1]);
+}
+
+/* Name: insert_u16
+ * Description: This function fills the provided u16_t buffer into a u8_t buffer array. */
+static inline void insert_u16(u8_t *buf)
+{
+	buf[0] = (data >> 8) & 0xFF;
+	buf[1] = (data >> 0) & 0xFF;
+}
+
 #endif /* #define TFTP_CLIENT_H_ */

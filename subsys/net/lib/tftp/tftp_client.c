@@ -132,8 +132,8 @@ static inline int tftpc_send_ack(int sock, int block)
 	LOG_INF("Client acking Block Number: %d", block);
 
 	/* Fill in the "Ack" Opcode and the block no. */
-	fillshort(tmp, ACK_OPCODE);
-	fillshort(tmp + 2, block);
+	insert_u16(tmp, ACK_OPCODE);
+	insert_u16(tmp + 2, block);
 
 	/* Lets send this request buffer out. Size of request buffer is 4 bytes. */
 	return send(sock, tmp, 4, 0);
@@ -146,8 +146,8 @@ static inline int tftpc_send_err(int sock, int err_code, char *err_string)
 	LOG_ERR("Client Error. Sending code: %d(%s)", err_code, err_string);
 
 	/* Fill in the "Err" Opcode and the actual error code. */
-	fillshort(tftpc_request_buffer, ERROR_OPCODE);
-	fillshort(tftpc_request_buffer + 2, err_code);
+	insert_u16(tftpc_request_buffer, ERROR_OPCODE);
+	insert_u16(tftpc_request_buffer + 2, err_code);
 	tftpc_request_size = 4;
 
 	/* Copy the Error String. */
@@ -195,7 +195,7 @@ static int tftpc_process(int sock, struct tftpc *client)
 	bool     send_ack = true;
 
 	/* Get the block number as received in the packet. */
-	block_no = getshort(tftpc_request_buffer + 2);
+	block_no = extract_u16(tftpc_request_buffer + 2);
 
 	/* Is this the block number we are looking for? */
 	if (block_no == tftpc_block_no) {
@@ -300,14 +300,14 @@ static int tftp_send_request(int sock, u8_t request,
 
 				/* Ok - We were able to get response of our read request from the TFTP Server.
 				 * Lets check and see what the TFTP Server has to say about our request. */
-				server_response = getshort(tftpc_request_buffer);
+				server_response = extract_u16(tftpc_request_buffer);
 
 				/* Did we get some err? */
 				if (server_response == ERROR_OPCODE) {
 
 					/* The server responded with some errors here. Lets get to know about the specific
 					 * error and log it. Nothing else we can do here really and so should exit. */
-					LOG_ERR("tftp_get failure - Server returned: %d", getshort(tftpc_request_buffer + 2));
+					LOG_ERR("tftp_get failure - Server returned: %d", extract_u16(tftpc_request_buffer + 2));
 
 					break;
 				}
@@ -317,7 +317,7 @@ static int tftp_send_request(int sock, u8_t request,
 
 					/* Good News - TFTP Server responded with data. Lets talk to the server and
 					 * get all data. */
-					LOG_DBG("tftp_get success - Server returned: %d", getshort(tftpc_request_buffer + 2));
+					LOG_DBG("tftp_get success - Server returned: %d", extract_u16(tftpc_request_buffer + 2));
 
 					break;
 				}
@@ -425,7 +425,7 @@ recv:
 					LOG_INF("Recevied data of size: %d", stat);
 
 					/* Response? */
-					server_response = getshort(tftpc_request_buffer);
+					server_response = extract_u16(tftpc_request_buffer);
 				}
 				else {
 
@@ -461,7 +461,7 @@ recv:
 		else if (server_response == ERROR_OPCODE) {
 			/* The server responded with some errors here. Lets get to know about the specific
 			 * error and log it. Nothing else we can do here really and so should exit. */
-			LOG_ERR("tftp_get failure - Server returned: %d", getshort(tftpc_request_buffer + 2));
+			LOG_ERR("tftp_get failure - Server returned: %d", extract_u16(tftpc_request_buffer + 2));
 
 			break;
 		}
