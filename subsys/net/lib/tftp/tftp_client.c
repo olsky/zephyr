@@ -73,13 +73,6 @@ static inline u16_t getshort(u8_t *buf)
 	return (tmp);
 }
 
-/* Name: fillchar
- * Description: This function fills the provided u8_t buffer into a u8_t buffer array. */
-static inline void fillchar(u8_t * buf, u8_t data)
-{
-	buf[0] = data;
-}
-
 /* Name: make_rrq
  * Description: This function takes in a given list of parameters and returns a read request packet.
  *              This packet can be sent out directly to the TFTP server. */
@@ -105,7 +98,7 @@ static inline void make_request(const char *remote_file, const char *mode, u8_t 
 	tftpc_request_size += strlen(remote_file);
 
 	/* Fill in 0. */
-	fillchar(tftpc_request_buffer + tftpc_request_size, 0x0);
+	tftpc_request_buffer[tftpc_request_size] = 0x0;
 	tftpc_request_size ++;
 
 	/* Default to "Octet" if mode not specified. */
@@ -118,7 +111,7 @@ static inline void make_request(const char *remote_file, const char *mode, u8_t 
 	tftpc_request_size += strlen(mode);
 
 	/* Fill in 0. */
-	fillchar(tftpc_request_buffer + tftpc_request_size, 0x0);
+	tftpc_request_buffer[tftpc_request_size] = 0x0;
 	tftpc_request_size ++;
 }
 
