@@ -19,10 +19,13 @@ static u32_t  tftpc_request_size;
 static u32_t  tftpc_block_no;
 static u32_t  tftpc_index;
 
+/* Global mutex to protect critical resources. */
+K_MUTEX_DEFINE(tftpc_lock);
+
 /* Default TFTP Server (the user can provide an override via API). */
 static struct sockaddr_in def_srv = {
 	.sin_family = AF_INET,
-	.sin_port   = htons(CONFIG_TFTPC_DEFAULT_SERVER_PORT)
+	.sin_port   = htons(TFTPC_DEF_SERVER_PORT)
 };
 
 /* Global timeval structure indicating the timeout interval for all TFTP transactions. */
@@ -331,6 +334,8 @@ static int tftp_send_request(int sock, u8_t request,
 	return (server_response);
 }
 
+/* Name: tftp_connect
+ * Description: This function connects with the TFTP Server. */
 static inline s8_t tftp_connect(s32_t sock, struct sockaddr_in *server) {
 
 	/* If the server information is not provided by the user, we
@@ -338,7 +343,7 @@ static inline s8_t tftp_connect(s32_t sock, struct sockaddr_in *server) {
 	if (server == NULL) {
 
 		/* Have to use the default server. Populate the IP address. */
-		inet_pton(AF_INET, CONFIG_TFTPC_DEFAULT_SERVER_IP, &def_srv.sin_addr);
+		inet_pton(AF_INET, TFTPC_DEF_SERVER_IP, &def_srv.sin_addr);
 
 		/* Update the pointer. */
 		server = &def_srv;
@@ -374,6 +379,12 @@ int tftp_get(struct sockaddr_in *server, struct tftpc *client,
 	stat = tftp_connect(sock, server);
 	if (stat < 0) {
 		LOG_ERR("Cannot connect to UDP remote (IPv4): %d", errno);
+		return -errno;
+	}
+
+	/* Obtain Global Lock before accessing critical resources. */
+	if (k_mutex_lock(&tftpc_lock, K_FOREVER) != 0) {
+		LOG_ERR("Failed to obtain TFTP Client Semaphore");
 		return -errno;
 	}
 
@@ -433,6 +444,12 @@ recv:
 					}
 				}
 			}
+			else if (stat == TFTPC_OP_COMPLETED) {
+				/* Able to read the file successfully. */
+				LOG_INF("TFTP Client was able to read the file successfully");
+
+				break;
+			}
 		}
 		else if (server_response == ERROR_OPCODE) {
 			/* The server responded with some errors here. Lets get to know about the specific
@@ -442,6 +459,9 @@ recv:
 			break;
 		}
 	} while (stat > 0);
+
+	/* Release the lock. */
+	k_mutex_unlock(&tftpc_lock);
 
 	/* Close out this socket. */
 	close(sock);

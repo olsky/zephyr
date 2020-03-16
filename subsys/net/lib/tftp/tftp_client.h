@@ -22,6 +22,10 @@
 /* Maximum amount of data that can be received in a single go ! */
 #define TFTPC_MAX_BUF_SIZE       (TFTP_BLOCK_SIZE + TFTP_HEADER_SIZE)
 
+/* TFTP Default Server IP / Port. */
+#define TFTPC_DEF_SERVER_IP      CONFIG_TFTPC_DEFAULT_SERVER_IP
+#define TFTPC_DEF_SERVER_PORT    CONFIG_TFTPC_DEFAULT_SERVER_PORT
+
 /* TFTP Opcodes. */
 #define RRQ_OPCODE               0x1
 #define WRQ_OPCODE               0x2
