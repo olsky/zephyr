@@ -51,28 +51,6 @@ static int pollfds_add(int fd)
 	return 0;
 }
 
-/* Name: fillshort
- * Description: This function fills the provided u16_t buffer into a u8_t buffer array. */
-static inline void fillshort(u8_t *buf, u16_t data)
-{
-	buf[0] = (data >> 8) & 0xFF;
-	buf[1] = (data >> 0) & 0xFF;
-}
-
-/* Name: getshort
- * Description: This function gets u16_t buffer into a u8_t buffer array. */
-static inline u16_t getshort(u8_t *buf)
-{
-	u16_t   tmp;
-
-	/* Create this short number. */
-	tmp   = buf[0] << 8;
-	tmp   = buf[1];
-
-	/* Return it to the caller. */
-	return (tmp);
-}
-
 /* Name: make_rrq
  * Description: This function takes in a given list of parameters and returns a read request packet.
  *              This packet can be sent out directly to the TFTP server. */
@@ -113,13 +91,6 @@ static inline void make_request(const char *remote_file, const char *mode, u8_t 
 	/* Fill in 0. */
 	tftpc_request_buffer[tftpc_request_size] = 0x0;
 	tftpc_request_size ++;
-}
-
-/* Name: make_wrq
- * Description: This function takes in a given list of parameters and returns a write request packet.
- *              This packet can be sent out directly to the TFTP server. */
-static inline void make_wrq(char *request, const char *remote_file, const char *mode)
-{
 }
 
 /* Name: tftpc_send_ack
