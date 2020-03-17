@@ -1,0 +1,11 @@
+#
+# Copyright (c) 2019, Linumiz
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+description: Texas Instruments BQ274xx Fuel Gauge
+
+compatible: "ti,bq274xx"
+
+include: i2c-device.yaml

@@ -1,0 +1,29 @@
+
+menuconfig BQ274XX
+	bool "BQ274xx Fuel Gauge"
+	depends on (I2C && HAS_DTS_I2C)
+	help	
+	  Enable I2C-based driver for BQ274xx Fuel Gauge.
+
+if BQ274XX
+
+config BQ274XX_DESIGN_VOLTAGE
+	int "Battery Design Volatge in mV"
+	range 3300 4400
+	default 3700
+	help 
+	  Specify the design voltage of the battery
+
+config BQ274XX_DESIGN_CAPACITY
+	int "Battery Design Capacity in mAh"
+	default 1800
+
+config BQ274XX_TAPER_CURRENT
+	int "Battery Taper current in mAh"
+	default 45
+
+config BQ274XX_TERMINATE_VOLTAGE
+	int "Battery Terminate Voltage in mV"
+	default 3000
+
+endif # BQ274XX
