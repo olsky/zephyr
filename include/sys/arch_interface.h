@@ -41,7 +41,7 @@ extern "C" {
 struct k_thread;
 struct k_mem_domain;
 
-typedef struct _k_thread_stack_element k_thread_stack_t;
+typedef struct z_thread_stack_element k_thread_stack_t;
 
 typedef void (*k_thread_entry_t)(void *p1, void *p2, void *p3);
 
@@ -577,6 +577,8 @@ void arch_mem_domain_destroy(struct k_mem_domain *domain);
  * In some architectures the validation will always return failure
  * if the supplied memory buffer spans multiple enabled memory management
  * regions (even if all such regions permit user access).
+ *
+ * @warning 0 size buffer has undefined behavior.
  *
  * @param addr start address of the buffer
  * @param size the size of the buffer
