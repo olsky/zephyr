@@ -1,0 +1,19 @@
+# Copyright (c) 2019, Foundries.io
+# SPDX-License-Identifier: Apache-2.0
+
+title: SIMCOMM SIM80x modem
+
+description: |
+    This is a representation of the SIMCOMM SIM800/SIM808 modem.
+
+compatible: "simcomm,sim80x"
+
+include: uart-device.yaml
+
+properties:
+    label:
+      required: true
+
+    mdm-reset-gpios:
+      type: phandle-array
+      required: true

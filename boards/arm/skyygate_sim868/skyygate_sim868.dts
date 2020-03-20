@@ -1,0 +1,187 @@
+/*
+ * Copyright (c) 2020 InnBlue
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <st/l4/stm32l475Xg.dtsi>
+
+
+/ {
+	model = "InnBlue Skyygate SIM868";
+	compatible = "innblue,skyygate-sim868", "st,stm32l475";
+
+	chosen {
+		zephyr,console = &usart1;
+		zephyr,shell-uart = &usart1;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+	};
+	
+	leds {
+		compatible = "gpio-leds";
+		user_led_1: led_1 {
+			gpios = <&gpiob 1 GPIO_INT_ACTIVE_LOW>;
+			label = "User LD1 red";
+		};
+		user_led_2: led_2 {
+			gpios = <&gpiob 0 GPIO_INT_ACTIVE_LOW>;
+			label = "User LD2 green";
+		};
+		user_led_3: led_3 {
+			gpios = <&gpioc 5 GPIO_INT_ACTIVE_LOW>;
+			label = "User LD3 blue";
+		};
+		user_led_4: led_4 {
+			gpios = <&gpioa 6 GPIO_INT_ACTIVE_LOW>;
+			label = "User LD4 red";
+		};
+		user_led_5: led_5 {
+			gpios = <&gpioa 7 GPIO_INT_ACTIVE_LOW>;
+			label = "User LD5 green";
+		};
+		user_led_6: led_6 {
+			gpios = <&gpioc 4 GPIO_INT_ACTIVE_LOW>;
+			label = "User LD6 blue";
+		};
+	};
+	
+	aliases {
+		led0 = &user_led_1;
+		led1 = &user_led_2;
+		led2 = &user_led_3;
+		led3 = &user_led_4;
+		led4 = &user_led_5;
+		led5 = &user_led_6;
+	};
+};
+
+&usart1 {
+	current-speed = <115200>;
+	status = "okay";
+};
+
+/* Skyygate Sim868 board uses USART2 to 
+ * interface with the SIM Modem device. */
+&usart2 {
+	current-speed = <9600>;
+	status = "okay";
+	/*
+		TX = PD5  CTS = PD3
+		RX = PD6  RTS = PD4
+	*/
+
+	/* Enable Hardware Flow Control to ensure that
+	 * no data is lost while communicating with modem. */
+	hw-flow-control;
+	
+	/* SIM80x GPIO(s). 
+	 * mdm-reset-gpios = PE06 */
+	sim80x {
+		compatible = "simcomm,sim80x";
+		label = "sim80x";
+		mdm-reset-gpios = <&gpioe 6 0>; /* GPIO pin to trigger reset of the SIM80x module. */
+		status = "okay";
+	};
+};
+
+&spi3 {
+	status = "okay";
+	
+	/* SCK  = PC10 */
+	/* MISO = PC11 */
+	/* MOSI = PC12 */
+	
+	cs-gpios = <&gpiob 5 0>; /* CS = PB5 */
+	
+ 	nrf-ble-controller@0 {
+		compatible = "zephyr,bt-hci-spi";
+		reg = <0>;
+		spi-max-frequency = <400000>;
+		label = "NRF_BLE_CTRL";
+	
+		/* FIXME: These are added simply because the BLE stack won't build
+		 * without them. Right now, I don't know how the custom board handles
+		 * this. Will be updated once I learn more. OK for now. */
+		reset-gpios = <&gpiob 2 0>; /* PB2 = CN1:D8 */ 
+		irq-gpios = <&gpioa 15 0>;  /* PA15 = CN1:D9 */
+	};	
+};
+
+&flash0 {
+	/*
+	 * For more information, see:
+	 * http://docs.zephyrproject.org/latest/guides/dts/index.html#flash-partitions
+	 */
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x00010000>;
+			read-only;
+		};
+
+		/*
+		 * The flash starting at offset 0x10000 and ending at
+		 * offset 0x1ffff is reserved for use by the application.
+		 */
+
+		slot0_partition: partition@20000 {
+			label = "image-0";
+			reg = <0x00020000 0x0006C000>;
+		};
+		slot1_partition: partition@8c000 {
+			label = "image-1";
+			reg = <0x0008C000 0x0006C000>;
+		};
+		scratch_partition: partition@f8000 {
+			label = "image-scratch";
+			reg = <0x000F8000 0x00006000>;
+		};
+
+		storage_partition: partition@fc000 {
+			label = "storage";
+			reg = <0x000fc000 0x00004000>;
+		};
+	};
+};
+
+&timers2 {
+	status = "okay";
+};
+
+&lptim1 {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+	
+  	clock-frequency = <I2C_BITRATE_FAST>; 
+	
+	bq27421@55 {
+		compatible = "ti,bq274xx";
+		label = "BQ274XX";
+		reg = <0x55>;
+	};
+
+	lis2dh12-accel@19 {
+		compatible = "st,lis2dh";
+		reg = <0x19>;
+		
+		/* LIS2DH has Interrupts on PA4 / PA5. */
+		irq-gpios = <&gpioa 4 0>, <&gpioa 5 0>;
+		label = "LIS2DH12-ACCEL";
+	};	
+	
+	bme680@76 {
+		compatible = "bosch,bme680";
+		label = "BME680";
+		reg = <0x76>;
+	};
+};

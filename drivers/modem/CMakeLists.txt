@@ -17,12 +17,13 @@ if(CONFIG_MODEM_UBLOX_SARA)
 	zephyr_library_sources(ublox-sara-r4.c)
 endif()
 
+if(CONFIG_MODEM_SIM800)
+	zephyr_library_include_directories(${ZEPHYR_BASE}/subsys/net/ip)
+	zephyr_library_include_directories(${ZEPHYR_BASE}/ext/lib/attentive/include)
+	zephyr_library_sources(simcomm-sim80x.c)
+endif()
+
 if(CONFIG_MODEM_WNCM14A2A)
 	zephyr_library_include_directories(${ZEPHYR_BASE}/subsys/net/ip)
 	zephyr_library_sources(wncm14a2a.c)
-endif()
-
-if(CONFIG_MODEM_GSM_PPP)
-	zephyr_library_include_directories(${ZEPHYR_BASE}/subsys/net/ip)
-	zephyr_library_sources(gsm_ppp.c)
 endif()

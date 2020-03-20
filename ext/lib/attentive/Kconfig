@@ -1,0 +1,7 @@
+# Copyright (c) 2018 Nordic Semiconductor
+# SPDX-License-Identifier: Apache-2.0
+
+config SIM80X_LIB
+	bool "SIM80x Modem Support"
+	help
+	  This option enables the support for SIM80x

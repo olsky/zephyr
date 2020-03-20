@@ -1,2 +1,4 @@
 add_subdirectory(crypto)
 add_subdirectory_ifdef(CONFIG_FNMATCH fnmatch)
+add_subdirectory_ifdef(CONFIG_SIM80X_LIB attentive)
+add_subdirectory_ifdef(CONFIG_GPS_NMEA_LIB gps_nmea_parser)

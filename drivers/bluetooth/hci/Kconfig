@@ -45,7 +45,7 @@ config BT_SPI
 	  prepended after a known header.  Headers may vary per device, so
 	  additional platform specific knowledge may need to be added as
 	  devices are.
-
+	  
 config BT_STM32_IPM
 	bool "IPM HCI"
 	select USE_STM32_HAL_CORTEX
@@ -85,6 +85,14 @@ config BT_UART_ON_DEV_NAME
 
 if BT_SPI
 
+config BT_SPI_RX_STACK_SIZE
+	int "Size of stack for BT HCI RX Thread"
+	default 2048 if COVERAGE_GCOV
+	default 1024
+	help
+	  Default Stack Size for the RX Thread when the Bluetooth stack uses 
+	  SPI for HCI. 
+
 config BT_BLUENRG_ACI
 	bool "Enable ACI message with with BlueNRG-based devices"
 	help
@@ -99,10 +107,11 @@ config BT_SPI_BLUENRG
 
 endif # BT_SPI
 
+if BT_RPMSG
+
 config BT_RPMSG_NRF53
 	bool "nRF53 configuration of RPMsg"
-	default y if (BOARD_NRF5340_DK_NRF5340_CPUAPP || BOARD_NRF5340_DK_NRF5340_CPUAPPNS)
-	depends on BT_RPMSG
+	default y if BOARD_NRF5340_DK_NRF5340_CPUAPP
 	select IPM
 	select IPM_NRFX
 	select IPM_MSG_CH_1_ENABLE
@@ -125,3 +134,5 @@ config BT_RPMSG_NRF53_RX_PRIO
 	default 8
 
 endif # BT_RPMSG_NRF53
+
+endif # BT_RPMSG

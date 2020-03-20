@@ -1,0 +1,38 @@
+# u-blox SARA R4 driver options
+
+# Copyright (c) 2019 Foundries.io
+# SPDX-License-Identifier: Apache-2.0
+
+config MODEM_SIM800
+	bool "Enable SIMCOMM SIM800 modem driver"
+	select MODEM_CONTEXT
+	select MODEM_CMD_HANDLER
+	select MODEM_IFACE_UART
+	select MODEM_SOCKET
+	select NET_OFFLOAD
+	select NET_SOCKETS_OFFLOAD
+	imply GPIO
+	help
+	  Choose this setting to enable SIMCOMM SIM800 modem
+	  driver.
+
+if MODEM_SIM800
+
+config MODEM_SIM80X_NAME
+	string "Driver name"
+	default "MODEM_SIM80X"
+
+config MODEM_SIM80X_APN
+	string "Name of access point to connect with"
+	default "internet"
+
+config MODEM_SIM80X_INIT_PRIORITY
+	int "SIMCOMM SIM80X driver init priority"
+	default 80
+	help
+	  SIMCOMM SIM80X device driver initialization priority.
+	  Do not mess with it unless you know what you are doing.
+	  Note that the priority needs to be lower than the net stack
+	  so that it can start before the networking sub-system.
+
+endif # MODEM_SIM800

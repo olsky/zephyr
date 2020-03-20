@@ -1,0 +1,13 @@
+identifier: skyygate_sim800
+name: InnBlue SKYYGATE SIM800
+type: mcu
+arch: arm
+toolchain:
+  - gnuarmemb
+supported:
+  - i2c
+  - gpio
+  - ble
+  - spi
+ram: 96
+flash: 1024

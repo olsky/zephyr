@@ -1,0 +1,61 @@
+# InnBlue Skyygate SIM800 configuration
+
+# Copyright (c) 2020 InnBlue Limited
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_SKYYGATE_SIM800
+
+config BOARD
+	default "skyygate_sim800"
+
+if STM32_LPTIM_TIMER
+
+choice STM32_LPTIM_CLOCK
+	default STM32_LPTIM_CLOCK_LSE
+
+endchoice
+
+endif #STM32_LPTIM_TIMER
+
+if SPI
+
+config SPI_STM32_INTERRUPT
+	default y
+
+config SPI_3
+	default y
+
+endif # SPI
+
+if I2C
+
+config I2C_2
+	default y
+
+endif # I2C
+
+if MODEM_SIM800
+
+config UART_2
+	default y
+
+endif #MODEM_SIM800
+
+if BT
+
+config SPI
+	default y
+
+choice BT_HCI_BUS_TYPE
+	default BT_SPI
+endchoice
+
+# Disable Flow control
+config BT_HCI_ACL_FLOW_CONTROL
+	default n
+config BT_HCI_VS_EXT
+	default n
+
+endif #BT
+
+endif #BOARD_SKYYGATE_SIM800

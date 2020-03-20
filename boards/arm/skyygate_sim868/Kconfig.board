@@ -1,0 +1,8 @@
+# InnBlue Skyygate SIM868 board configuration
+
+# Copyright (c) 2020 InnBlue
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_SKYYGATE_SIM868
+	bool "InnBlue Skyygate SIM868 board"
+	depends on SOC_STM32L475XX
