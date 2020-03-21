@@ -19,7 +19,6 @@
 #include <net/net_if.h>
 #include <net/net_offload.h>
 #include <net/socket_offload.h>
-#include <net/socket_offload_ops.h>
 
 #include "modem_context.h"
 #include "modem_socket.h"

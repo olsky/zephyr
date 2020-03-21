@@ -68,23 +68,6 @@
 &usart2 {
 	current-speed = <9600>;
 	status = "okay";
-	/*
-		TX = PD5  CTS = PD3
-		RX = PD6  RTS = PD4
-	*/
-
-	/* Enable Hardware Flow Control to ensure that
-	 * no data is lost while communicating with modem. */
-	hw-flow-control;
-	
-	/* SIM80x GPIO(s). 
-	 * mdm-reset-gpios = PE06 */
-	sim80x {
-		compatible = "simcomm,sim80x";
-		label = "sim80x";
-		mdm-reset-gpios = <&gpioe 6 0>; /* GPIO pin to trigger reset of the SIM80x module. */
-		status = "okay";
-	};
 };
 
 &spi3 {
