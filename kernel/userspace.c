@@ -8,7 +8,6 @@
 #include <kernel.h>
 #include <string.h>
 #include <sys/math_extras.h>
-#include <sys/printk.h>
 #include <sys/rb.h>
 #include <kernel_structs.h>
 #include <sys/sys_io.h>
@@ -21,6 +20,7 @@
 #include <app_memory/app_memdomain.h>
 #include <sys/libc-hooks.h>
 #include <sys/mutex.h>
+#include <inttypes.h>
 
 #ifdef Z_LIBC_PARTITION_EXISTS
 K_APPMEM_PARTITION_DEFINE(z_libc_partition);
@@ -58,7 +58,7 @@ static struct k_spinlock obj_lock;         /* kobj struct data */
 extern u8_t _thread_idx_map[CONFIG_MAX_THREAD_BYTES];
 #endif
 
-static void clear_perms_cb(struct _k_object *ko, void *ctx_ptr);
+static void clear_perms_cb(struct z_object *ko, void *ctx_ptr);
 
 const char *otype_to_str(enum k_objects otype)
 {
@@ -67,7 +67,7 @@ const char *otype_to_str(enum k_objects otype)
 	 * GCC and these literal strings would appear in the binary even if
 	 * otype_to_str was omitted by the linker
 	 */
-#ifdef CONFIG_PRINTK
+#ifdef CONFIG_LOG
 	switch (otype) {
 	/* otype-to-str.h is generated automatically during build by
 	 * gen_kobject_list.py
@@ -90,15 +90,34 @@ struct perm_ctx {
 	struct k_thread *parent;
 };
 
+#ifdef CONFIG_GEN_PRIV_STACKS
+/* See write_gperf_table() in scripts/gen_kobject_list.py. The privilege
+ * mode stacks are allocated as an array. The base of the array is
+ * aligned to Z_PRIVILEGE_STACK_ALIGN, and all members must be as well.
+ */
+BUILD_ASSERT(CONFIG_PRIVILEGED_STACK_SIZE % Z_PRIVILEGE_STACK_ALIGN == 0);
+
+u8_t *z_priv_stack_find(k_thread_stack_t *stack)
+{
+	struct z_object *obj = z_object_find(stack);
+
+	__ASSERT(obj != NULL, "stack object not found");
+	__ASSERT(obj->type == K_OBJ_THREAD_STACK_ELEMENT,
+		 "bad stack object");
+
+	return obj->data.stack_data->priv;
+}
+#endif /* CONFIG_GEN_PRIV_STACKS */
+
 #ifdef CONFIG_DYNAMIC_OBJECTS
 struct dyn_obj {
-	struct _k_object kobj;
+	struct z_object kobj;
 	sys_dnode_t obj_list;
 	struct rbnode node; /* must be immediately before data member */
 	u8_t data[]; /* The object itself */
 };
 
-extern struct _k_object *z_object_gperf_find(void *obj);
+extern struct z_object *z_object_gperf_find(void *obj);
 extern void z_object_gperf_wordlist_foreach(_wordlist_cb_func_t func,
 					     void *context);
 
@@ -186,7 +205,7 @@ static struct dyn_obj *dyn_object_find(void *obj)
  *
  * @return true if successful, false if failed
  **/
-static bool thread_idx_alloc(u32_t *tidx)
+static bool thread_idx_alloc(uintptr_t *tidx)
 {
 	int i;
 	int idx;
@@ -225,7 +244,7 @@ static bool thread_idx_alloc(u32_t *tidx)
  *
  * @param tidx The thread index to be freed
  **/
-static void thread_idx_free(u32_t tidx)
+static void thread_idx_free(uintptr_t tidx)
 {
 	/* To prevent leaked permission when index is recycled */
 	z_object_wordlist_foreach(clear_perms_cb, (void *)tidx);
@@ -236,13 +255,13 @@ static void thread_idx_free(u32_t tidx)
 void *z_impl_k_object_alloc(enum k_objects otype)
 {
 	struct dyn_obj *dyn_obj;
-	u32_t tidx;
+	uintptr_t tidx;
 
 	/* Stacks are not supported, we don't yet have mem pool APIs
 	 * to request memory that is aligned
 	 */
 	__ASSERT(otype > K_OBJ_ANY && otype < K_OBJ_LAST &&
-		 otype != K_OBJ__THREAD_STACK_ELEMENT,
+		 otype != K_OBJ_THREAD_STACK_ELEMENT,
 		 "bad object type requested");
 
 	dyn_obj = z_thread_malloc(sizeof(*dyn_obj) + obj_size_get(otype));
@@ -263,7 +282,7 @@ void *z_impl_k_object_alloc(enum k_objects otype)
 			return NULL;
 		}
 
-		dyn_obj->kobj.data = tidx;
+		dyn_obj->kobj.data.thread_id = tidx;
 	}
 
 	/* The allocating thread implicitly gets permission on kernel objects
@@ -297,7 +316,7 @@ void k_object_free(void *obj)
 		sys_dlist_remove(&dyn_obj->obj_list);
 
 		if (dyn_obj->kobj.type == K_OBJ_THREAD) {
-			thread_idx_free(dyn_obj->kobj.data);
+			thread_idx_free(dyn_obj->kobj.data.thread_id);
 		}
 	}
 	k_spin_unlock(&objfree_lock, key);
@@ -307,9 +326,9 @@ void k_object_free(void *obj)
 	}
 }
 
-struct _k_object *z_object_find(void *obj)
+struct z_object *z_object_find(void *obj)
 {
-	struct _k_object *ret;
+	struct z_object *ret;
 
 	ret = z_object_gperf_find(obj);
 
@@ -340,20 +359,20 @@ void z_object_wordlist_foreach(_wordlist_cb_func_t func, void *context)
 }
 #endif /* CONFIG_DYNAMIC_OBJECTS */
 
-static int thread_index_get(struct k_thread *t)
+static unsigned int thread_index_get(struct k_thread *thread)
 {
-	struct _k_object *ko;
+	struct z_object *ko;
 
-	ko = z_object_find(t);
+	ko = z_object_find(thread);
 
 	if (ko == NULL) {
 		return -1;
 	}
 
-	return ko->data;
+	return ko->data.thread_id;
 }
 
-static void unref_check(struct _k_object *ko, int index)
+static void unref_check(struct z_object *ko, uintptr_t index)
 {
 	k_spinlock_key_t key = k_spin_lock(&obj_lock);
 
@@ -401,7 +420,7 @@ out:
 	k_spin_unlock(&obj_lock, key);
 }
 
-static void wordlist_cb(struct _k_object *ko, void *ctx_ptr)
+static void wordlist_cb(struct z_object *ko, void *ctx_ptr)
 {
 	struct perm_ctx *ctx = (struct perm_ctx *)ctx_ptr;
 
@@ -424,7 +443,7 @@ void z_thread_perms_inherit(struct k_thread *parent, struct k_thread *child)
 	}
 }
 
-void z_thread_perms_set(struct _k_object *ko, struct k_thread *thread)
+void z_thread_perms_set(struct z_object *ko, struct k_thread *thread)
 {
 	int index = thread_index_get(thread);
 
@@ -433,7 +452,7 @@ void z_thread_perms_set(struct _k_object *ko, struct k_thread *thread)
 	}
 }
 
-void z_thread_perms_clear(struct _k_object *ko, struct k_thread *thread)
+void z_thread_perms_clear(struct z_object *ko, struct k_thread *thread)
 {
 	int index = thread_index_get(thread);
 
@@ -443,23 +462,23 @@ void z_thread_perms_clear(struct _k_object *ko, struct k_thread *thread)
 	}
 }
 
-static void clear_perms_cb(struct _k_object *ko, void *ctx_ptr)
+static void clear_perms_cb(struct z_object *ko, void *ctx_ptr)
 {
-	int id = (int)ctx_ptr;
+	uintptr_t id = (uintptr_t)ctx_ptr;
 
 	unref_check(ko, id);
 }
 
 void z_thread_perms_all_clear(struct k_thread *thread)
 {
-	int index = thread_index_get(thread);
+	uintptr_t index = thread_index_get(thread);
 
 	if (index != -1) {
 		z_object_wordlist_foreach(clear_perms_cb, (void *)index);
 	}
 }
 
-static int thread_perms_test(struct _k_object *ko)
+static int thread_perms_test(struct z_object *ko)
 {
 	int index;
 
@@ -474,33 +493,30 @@ static int thread_perms_test(struct _k_object *ko)
 	return 0;
 }
 
-static void dump_permission_error(struct _k_object *ko)
+static void dump_permission_error(struct z_object *ko)
 {
 	int index = thread_index_get(_current);
-	printk("thread %p (%d) does not have permission on %s %p [",
-	       _current, index,
-	       otype_to_str(ko->type), ko->name);
-	for (int i = CONFIG_MAX_THREAD_BYTES - 1; i >= 0; i--) {
-		printk("%02x", ko->perms[i]);
-	}
-	printk("]\n");
+	LOG_ERR("thread %p (%d) does not have permission on %s %p",
+		_current, index,
+		otype_to_str(ko->type), ko->name);
+	LOG_HEXDUMP_ERR(ko->perms, sizeof(ko->perms), "permission bitmap");
 }
 
-void z_dump_object_error(int retval, void *obj, struct _k_object *ko,
+void z_dump_object_error(int retval, void *obj, struct z_object *ko,
 			enum k_objects otype)
 {
 	switch (retval) {
 	case -EBADF:
-		printk("%p is not a valid %s\n", obj, otype_to_str(otype));
+		LOG_ERR("%p is not a valid %s", obj, otype_to_str(otype));
 		break;
 	case -EPERM:
 		dump_permission_error(ko);
 		break;
 	case -EINVAL:
-		printk("%p used before initialization\n", obj);
+		LOG_ERR("%p used before initialization", obj);
 		break;
 	case -EADDRINUSE:
-		printk("%p %s in use\n", obj, otype_to_str(otype));
+		LOG_ERR("%p %s in use", obj, otype_to_str(otype));
 		break;
 	default:
 		/* Not handled error */
@@ -510,7 +526,7 @@ void z_dump_object_error(int retval, void *obj, struct _k_object *ko,
 
 void z_impl_k_object_access_grant(void *object, struct k_thread *thread)
 {
-	struct _k_object *ko = z_object_find(object);
+	struct z_object *ko = z_object_find(object);
 
 	if (ko != NULL) {
 		z_thread_perms_set(ko, thread);
@@ -519,7 +535,7 @@ void z_impl_k_object_access_grant(void *object, struct k_thread *thread)
 
 void k_object_access_revoke(void *object, struct k_thread *thread)
 {
-	struct _k_object *ko = z_object_find(object);
+	struct z_object *ko = z_object_find(object);
 
 	if (ko != NULL) {
 		z_thread_perms_clear(ko, thread);
@@ -533,14 +549,14 @@ void z_impl_k_object_release(void *object)
 
 void k_object_access_all_grant(void *object)
 {
-	struct _k_object *ko = z_object_find(object);
+	struct z_object *ko = z_object_find(object);
 
 	if (ko != NULL) {
 		ko->flags |= K_OBJ_FLAG_PUBLIC;
 	}
 }
 
-int z_object_validate(struct _k_object *ko, enum k_objects otype,
+int z_object_validate(struct z_object *ko, enum k_objects otype,
 		       enum _obj_init_check init)
 {
 	if (unlikely((ko == NULL) ||
@@ -575,7 +591,7 @@ int z_object_validate(struct _k_object *ko, enum k_objects otype,
 
 void z_object_init(void *obj)
 {
-	struct _k_object *ko;
+	struct z_object *ko;
 
 	/* By the time we get here, if the caller was from userspace, all the
 	 * necessary checks have been done in z_object_validate(), which takes
@@ -600,7 +616,7 @@ void z_object_init(void *obj)
 
 void z_object_recycle(void *obj)
 {
-	struct _k_object *ko = z_object_find(obj);
+	struct z_object *ko = z_object_find(obj);
 
 	if (ko != NULL) {
 		(void)memset(ko->perms, 0, sizeof(ko->perms));
@@ -611,7 +627,7 @@ void z_object_recycle(void *obj)
 
 void z_object_uninit(void *obj)
 {
-	struct _k_object *ko;
+	struct z_object *ko;
 
 	/* See comments in z_object_init() */
 	ko = z_object_find(obj);
@@ -636,7 +652,7 @@ void *z_user_alloc_from_copy(const void *src, size_t size)
 
 	dst = z_thread_malloc(size);
 	if (dst == NULL) {
-		printk("out of thread resource pool memory (%zu)", size);
+		LOG_ERR("out of thread resource pool memory (%zu)", size);
 		goto out_err;
 	}
 
@@ -683,11 +699,11 @@ char *z_user_string_alloc_copy(const char *src, size_t maxlen)
 	}
 	if (actual_len == maxlen) {
 		/* Not NULL terminated */
-		printk("string too long %p (%zu)\n", src, actual_len);
+		LOG_ERR("string too long %p (%zu)", src, actual_len);
 		goto out;
 	}
 	if (size_add_overflow(actual_len, 1, &actual_len)) {
-		printk("overflow\n");
+		LOG_ERR("overflow");
 		goto out;
 	}
 
@@ -716,12 +732,12 @@ int z_user_string_copy(char *dst, const char *src, size_t maxlen)
 	}
 	if (actual_len == maxlen) {
 		/* Not NULL terminated */
-		printk("string too long %p (%zu)\n", src, actual_len);
+		LOG_ERR("string too long %p (%zu)", src, actual_len);
 		ret = EINVAL;
 		goto out;
 	}
 	if (size_add_overflow(actual_len, 1, &actual_len)) {
-		printk("overflow\n");
+		LOG_ERR("overflow");
 		ret = EINVAL;
 		goto out;
 	}
@@ -741,9 +757,11 @@ out:
 extern char __app_shmem_regions_start[];
 extern char __app_shmem_regions_end[];
 
-void z_app_shmem_bss_zero(void)
+static int app_shmem_bss_zero(struct device *unused)
 {
 	struct z_app_region *region, *end;
+
+	ARG_UNUSED(unused);
 
 	end = (struct z_app_region *)&__app_shmem_regions_end;
 	region = (struct z_app_region *)&__app_shmem_regions_start;
@@ -751,27 +769,33 @@ void z_app_shmem_bss_zero(void)
 	for ( ; region < end; region++) {
 		(void)memset(region->bss_start, 0, region->bss_size);
 	}
+
+	return 0;
 }
+
+SYS_INIT(app_shmem_bss_zero, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 
 /*
  * Default handlers if otherwise unimplemented
  */
 
-static u32_t handler_bad_syscall(u32_t bad_id, u32_t arg2, u32_t arg3,
-				  u32_t arg4, u32_t arg5, u32_t arg6, void *ssf)
+static uintptr_t handler_bad_syscall(uintptr_t bad_id, uintptr_t arg2,
+				     uintptr_t arg3, uintptr_t arg4,
+				     uintptr_t arg5, uintptr_t arg6,
+				     void *ssf)
 {
-	printk("Bad system call id %u invoked\n", bad_id);
-	z_arch_syscall_oops(ssf);
+	LOG_ERR("Bad system call id %" PRIuPTR " invoked", bad_id);
+	arch_syscall_oops(_current->syscall_frame);
 	CODE_UNREACHABLE; /* LCOV_EXCL_LINE */
 }
 
-static u32_t handler_no_syscall(u32_t arg1, u32_t arg2, u32_t arg3,
-				 u32_t arg4, u32_t arg5, u32_t arg6, void *ssf)
+static uintptr_t handler_no_syscall(uintptr_t arg1, uintptr_t arg2,
+				    uintptr_t arg3, uintptr_t arg4,
+				    uintptr_t arg5, uintptr_t arg6, void *ssf)
 {
-	printk("Unimplemented system call\n");
-	z_arch_syscall_oops(ssf);
+	LOG_ERR("Unimplemented system call");
+	arch_syscall_oops(_current->syscall_frame);
 	CODE_UNREACHABLE; /* LCOV_EXCL_LINE */
 }
 
 #include <syscall_dispatch.c>
-

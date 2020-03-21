@@ -1,4 +1,3 @@
-
 .. raw:: html
 
    <a href="https://www.zephyrproject.org">
@@ -41,6 +40,8 @@ Community Support
 Community support is provided via mailing lists and Slack; see the Resources
 below for details.
 
+.. _project-resources:
+
 Resources
 *********
 
@@ -51,7 +52,7 @@ Here's a quick summary of resources to help you find your way around:
 * **Source Code**: https://github.com/zephyrproject-rtos/zephyr is the main
   repository; https://elixir.bootlin.com/zephyr/latest/source contains a
   searchable index
-* **Releases**: https://zephyrproject.org/developers/#downloads
+* **Releases**: https://github.com/zephyrproject-rtos/zephyr/releases
 * **Samples and example code**: see `Sample and Demo Code Examples`_
 * **Mailing Lists**: users@lists.zephyrproject.org and
   devel@lists.zephyrproject.org are the main user and developer mailing lists,
@@ -72,7 +73,7 @@ Here's a quick summary of resources to help you find your way around:
 * **Zephyr Project Website**: https://zephyrproject.org
 
 .. _Slack Invite: https://tinyurl.com/y5glwylp
-.. _supported boards: http://docs.zephyrproject.org/latest/boards
+.. _supported boards: http://docs.zephyrproject.org/latest/boards/index.html
 .. _Zephyr Documentation: http://docs.zephyrproject.org
 .. _Introduction to Zephyr: http://docs.zephyrproject.org/latest/introduction/index.html
 .. _Getting Started Guide: http://docs.zephyrproject.org/latest/getting_started/index.html

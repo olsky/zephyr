@@ -14,6 +14,40 @@
  * Macros to abstract compiler capabilities for GCC toolchain.
  */
 
+/*
+ * Older versions of GCC do not define __BYTE_ORDER__, so it must be manually
+ * detected and defined using arch-specific definitions.
+ */
+
+#ifndef _LINKER
+
+#ifndef __ORDER_BIG_ENDIAN__
+#define __ORDER_BIG_ENDIAN__            (1)
+#endif
+
+#ifndef __ORDER_LITTLE_ENDIAN__
+#define __ORDER_LITTLE_ENDIAN__         (2)
+#endif
+
+#ifndef __BYTE_ORDER__
+#if defined(__BIG_ENDIAN__) || defined(__ARMEB__) || \
+    defined(__THUMBEB__) || defined(__AARCH64EB__) || \
+    defined(__MIPSEB__) || defined(__TC32EB__)
+
+#define __BYTE_ORDER__                  __ORDER_BIG_ENDIAN__
+
+#elif defined(__LITTLE_ENDIAN__) || defined(__ARMEL__) || \
+      defined(__THUMBEL__) || defined(__AARCH64EL__) || \
+      defined(__MIPSEL__) || defined(__TC32EL__)
+
+#define __BYTE_ORDER__                  __ORDER_LITTLE_ENDIAN__
+
+#else
+#error "__BYTE_ORDER__ is not defined and cannot be automatically resolved"
+#endif
+#endif
+
+
 /* C++11 has static_assert built in */
 #ifdef __cplusplus
 #define BUILD_ASSERT(EXPR) static_assert(EXPR, "")
@@ -37,6 +71,8 @@
 	return_type new_alias() ALIAS_OF(real_func)
 
 #if defined(CONFIG_ARCH_POSIX)
+#include <arch/posix/posix_trace.h>
+
 /*let's not segfault if this were to happen for some reason*/
 #define CODE_UNREACHABLE \
 {\
@@ -139,7 +175,9 @@ do {                                                                    \
 #define __printf_like(f, a)   __attribute__((format (printf, f, a)))
 #endif
 #define __used		__attribute__((__used__))
+#ifndef __deprecated
 #define __deprecated	__attribute__((deprecated))
+#endif
 #define ARG_UNUSED(x) (void)(x)
 
 #define likely(x)   __builtin_expect((bool)!!(x), true)
@@ -168,41 +206,52 @@ do {                                                                    \
 #define HAS_BUILTIN___builtin_ctzll 1
 #endif
 
-/* Be *very* careful with this, you cannot filter out with -wno-deprecated,
- * which has implications for -Werror
+/*
+ * Be *very* careful with these. You cannot filter out __DEPRECATED_MACRO with
+ * -wno-deprecated, which has implications for -Werror.
  */
-#define __DEPRECATED_MACRO _Pragma("GCC warning \"Macro is deprecated\"")
+
+/*
+ * Expands to nothing and generates a warning. Used like
+ *
+ *   #define FOO __WARN("Please use BAR instead") ...
+ *
+ * The warning points to the location where the macro is expanded.
+ */
+#define __WARN(msg) __WARN1(GCC warning msg)
+#define __WARN1(s) _Pragma(#s)
+
+/* Generic message */
+#ifndef __DEPRECATED_MACRO
+#define __DEPRECATED_MACRO __WARN("Macro is deprecated")
+#endif
 
 /* These macros allow having ARM asm functions callable from thumb */
 
-#if defined(_ASMLANGUAGE) && !defined(_LINKER)
+#if defined(_ASMLANGUAGE)
 
-#ifdef CONFIG_ARM
+#if defined(CONFIG_ARM) && !defined(CONFIG_ARM64)
 
-#if defined(CONFIG_ISA_THUMB2)
+#if defined(CONFIG_ASSEMBLER_ISA_THUMB2)
 
 #define FUNC_CODE() .thumb;
 #define FUNC_INSTR(a)
 
-#elif defined(CONFIG_ISA_ARM)
+#else
 
 #define FUNC_CODE() .code 32
 #define FUNC_INSTR(a)
 
-#else
-
-#error unknown instruction set
-
-#endif /* ISA */
+#endif /* CONFIG_ASSEMBLER_ISA_THUMB2 */
 
 #else
 
 #define FUNC_CODE()
 #define FUNC_INSTR(a)
 
-#endif /* !CONFIG_ARM */
+#endif /* CONFIG_ARM && !CONFIG_ARM64 */
 
-#endif /* _ASMLANGUAGE && !_LINKER */
+#endif /* _ASMLANGUAGE */
 
 /*
  * These macros are used to declare assembly language symbols that need
@@ -211,7 +260,7 @@ do {                                                                    \
  * correctly.  This is an elfism. Use #if 0 for a.out.
  */
 
-#if defined(_ASMLANGUAGE) && !defined(_LINKER)
+#if defined(_ASMLANGUAGE)
 
 #if defined(CONFIG_ARM) || defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) \
 	|| defined(CONFIG_XTENSA)
@@ -304,16 +353,20 @@ do {                                                                    \
 
 #endif /* CONFIG_ARC */
 
-#endif /* _ASMLANGUAGE && !_LINKER */
+#endif /* _ASMLANGUAGE */
 
-#if defined(CONFIG_ARM) && defined(_ASMLANGUAGE)
-#if defined(CONFIG_ISA_THUMB2)
+#if defined(_ASMLANGUAGE)
+#if defined(CONFIG_ARM) && !defined(CONFIG_ARM64)
+#if defined(CONFIG_ASSEMBLER_ISA_THUMB2)
 /* '.syntax unified' is a gcc-ism used in thumb-2 asm files */
 #define _ASM_FILE_PROLOGUE .text; .syntax unified; .thumb
 #else
 #define _ASM_FILE_PROLOGUE .text; .code 32
-#endif
-#endif
+#endif /* CONFIG_ASSEMBLER_ISA_THUMB2 */
+#elif defined(CONFIG_ARM64)
+#define _ASM_FILE_PROLOGUE .text
+#endif /* CONFIG_ARM64 || (CONFIG_ARM && !CONFIG_ARM64)*/
+#endif /* _ASMLANGUAGE */
 
 /*
  * These macros generate absolute symbols for GCC
@@ -330,7 +383,7 @@ do {                                                                    \
 
 #define GEN_ABS_SYM_END }
 
-#if defined(CONFIG_ARM)
+#if defined(CONFIG_ARM) && !defined(CONFIG_ARM64)
 
 /*
  * GNU/ARM backend does not have a proper operand modifier which does not
@@ -345,18 +398,18 @@ do {                                                                    \
 		",%B0"                              \
 		"\n\t.type\t" #name ",%%object" :  : "n"(~(value)))
 
-#elif defined(CONFIG_X86) || defined(CONFIG_ARC)
+#elif defined(CONFIG_X86)
+
+#define GEN_ABSOLUTE_SYM(name, value)               \
+	__asm__(".globl\t" #name "\n\t.equ\t" #name \
+		",%p0"                              \
+		"\n\t.type\t" #name ",@object" :  : "n"(value))
+
+#elif defined(CONFIG_ARC) || defined(CONFIG_ARM64)
 
 #define GEN_ABSOLUTE_SYM(name, value)               \
 	__asm__(".globl\t" #name "\n\t.equ\t" #name \
 		",%c0"                              \
-		"\n\t.type\t" #name ",@object" :  : "n"(value))
-
-#elif defined(CONFIG_X86_64)
-
-#define GEN_ABSOLUTE_SYM(name, value)               \
-	__asm__(".globl\t" #name "\n\t.equ\t" #name \
-		",%0"                               \
 		"\n\t.type\t" #name ",@object" :  : "n"(value))
 
 #elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) || defined(CONFIG_XTENSA)
@@ -380,4 +433,33 @@ do {                                                                    \
 	__asm__ __volatile__ ("" ::: "memory"); \
 } while (false)
 
+/** @brief Return larger value of two provided expressions.
+ *
+ * Macro ensures that expressions are evaluated only once.
+ *
+ * @note Macro has limited usage compared to the standard macro as it cannot be
+ *	 used:
+ *	 - to generate constant integer, e.g. __aligned(Z_MAX(4,5))
+ *	 - static variable, e.g. array like static u8_t array[Z_MAX(...)];
+ */
+#define Z_MAX(a, b) ({ \
+		/* random suffix to avoid naming conflict */ \
+		__typeof__(a) _value_a_ = (a); \
+		__typeof__(b) _value_b_ = (b); \
+		_value_a_ > _value_b_ ? _value_a_ : _value_b_; \
+	})
+
+/** @brief Return smaller value of two provided expressions.
+ *
+ * Macro ensures that expressions are evaluated only once. See @ref Z_MAX for
+ * macro limitations.
+ */
+#define Z_MIN(a, b) ({ \
+		/* random suffix to avoid naming conflict */ \
+		__typeof__(a) _value_a_ = (a); \
+		__typeof__(b) _value_b_ = (b); \
+		_value_a_ < _value_b_ ? _value_a_ : _value_b_; \
+	})
+
+#endif /* !_LINKER */
 #endif /* ZEPHYR_INCLUDE_TOOLCHAIN_GCC_H_ */

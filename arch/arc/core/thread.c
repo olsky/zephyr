@@ -12,8 +12,7 @@
  */
 
 #include <kernel.h>
-#include <toolchain.h>
-#include <kernel_structs.h>
+#include <ksched.h>
 #include <offsets_short.h>
 #include <wait_q.h>
 
@@ -59,10 +58,10 @@ struct init_stack_frame {
  *
  * @return N/A
  */
-void z_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
-		 size_t stackSize, k_thread_entry_t pEntry,
-		 void *parameter1, void *parameter2, void *parameter3,
-		 int priority, unsigned int options)
+void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
+		     size_t stackSize, k_thread_entry_t pEntry,
+		     void *parameter1, void *parameter2, void *parameter3,
+		     int priority, unsigned int options)
 {
 	char *pStackMem = Z_THREAD_STACK_BUFFER(stack);
 	Z_ASSERT_VALID_PRIO(priority, pEntry);
@@ -93,7 +92,7 @@ void z_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 			(u32_t)(stackEnd + STACK_GUARD_SIZE);
 
 		stackAdjEnd = (char *)STACK_ROUND_DOWN(stackEnd +
-				Z_ARCH_THREAD_STACK_RESERVED);
+				ARCH_THREAD_STACK_RESERVED);
 
 		/* reserve 4 bytes for the start of user sp */
 		stackAdjEnd -= 4;
@@ -123,7 +122,7 @@ void z_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	 */
 		pStackMem += STACK_GUARD_SIZE;
 		stackAdjSize = stackAdjSize + CONFIG_PRIVILEGED_STACK_SIZE;
-		stackEnd += Z_ARCH_THREAD_STACK_RESERVED;
+		stackEnd += ARCH_THREAD_STACK_RESERVED;
 
 		thread->arch.priv_stack_start = 0;
 
@@ -162,7 +161,7 @@ void z_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	 */
 	pInitCtx->status32 |= _ARC_V2_STATUS32_US;
 #else /* For no USERSPACE feature */
-	pStackMem += Z_ARCH_THREAD_STACK_RESERVED;
+	pStackMem += ARCH_THREAD_STACK_RESERVED;
 	stackEnd = pStackMem + stackSize;
 
 	z_new_thread_init(thread, pStackMem, stackSize, priority, options);
@@ -200,7 +199,7 @@ void z_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 		thread->arch.k_stack_top =
 			 (u32_t)(stackEnd + STACK_GUARD_SIZE);
 		thread->arch.k_stack_base = (u32_t)
-		(stackEnd + Z_ARCH_THREAD_STACK_RESERVED);
+		(stackEnd + ARCH_THREAD_STACK_RESERVED);
 	} else {
 		thread->arch.k_stack_top = (u32_t)pStackMem;
 		thread->arch.k_stack_base = (u32_t)stackEnd;
@@ -225,11 +224,17 @@ void z_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	/* initial values in all other regs/k_thread entries are irrelevant */
 }
 
+void *z_arch_get_next_switch_handle(struct k_thread **old_thread)
+{
+	*old_thread =  _current;
+
+	return z_get_next_switch_handle(*old_thread);
+}
 
 #ifdef CONFIG_USERSPACE
 
-FUNC_NORETURN void z_arch_user_mode_enter(k_thread_entry_t user_entry,
-	void *p1, void *p2, void *p3)
+FUNC_NORETURN void arch_user_mode_enter(k_thread_entry_t user_entry,
+					void *p1, void *p2, void *p3)
 {
 
 	/*
@@ -263,15 +268,15 @@ FUNC_NORETURN void z_arch_user_mode_enter(k_thread_entry_t user_entry,
 	configure_mpu_thread(_current);
 
 	z_arc_userspace_enter(user_entry, p1, p2, p3,
-			     (u32_t)_current->stack_obj,
-			     _current->stack_info.size);
+			      (u32_t)_current->stack_obj,
+			      _current->stack_info.size, _current);
 	CODE_UNREACHABLE;
 }
 
 #endif
 
 #if defined(CONFIG_FLOAT) && defined(CONFIG_FP_SHARING)
-int z_arch_float_disable(struct k_thread *thread)
+int arch_float_disable(struct k_thread *thread)
 {
 	unsigned int key;
 
@@ -288,7 +293,7 @@ int z_arch_float_disable(struct k_thread *thread)
 }
 
 
-int z_arch_float_enable(struct k_thread *thread)
+int arch_float_enable(struct k_thread *thread)
 {
 	unsigned int key;
 

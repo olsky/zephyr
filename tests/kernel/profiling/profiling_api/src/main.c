@@ -19,8 +19,7 @@ static struct k_sem sync_sema;
 /**TESTPOINT: stack analyze*/
 static void tdata_dump_callback(const struct k_thread *thread, void *user_data)
 {
-	stack_analyze("Test", (char *)thread->stack_info.start,
-						thread->stack_info.size);
+	log_stack_usage(thread);
 }
 
 /*
@@ -78,7 +77,7 @@ static void work_handler(struct k_work *w)
  *
  * @ingroup kernel_profiling_tests
  *
- * @see k_thread_foreach(), stack_analyze()
+ * @see k_thread_foreach(), log_stack_usage()
  */
 void test_call_stacks_analyze_main(void)
 {
@@ -95,7 +94,7 @@ void test_call_stacks_analyze_main(void)
  * @ingroup kernel_profiling_tests
  *
  * @see k_thread_foreach(), _sys_suspend(), _sys_resume(),
- * stack_analyze()
+ * log_stack_usage()
  */
 void test_call_stacks_analyze_idle(void)
 {
@@ -112,7 +111,7 @@ void test_call_stacks_analyze_idle(void)
  * @ingroup kernel_profiling_tests
  *
  * @see k_thread_foreach(), k_work_init(), k_work_submit(),
- * stack_analyze()
+ * log_stack_usage()
  */
 void test_call_stacks_analyze_workq(void)
 {
@@ -131,7 +130,7 @@ void test_main(void)
 {
 	ztest_test_suite(profiling_api,
 			 ztest_unit_test(test_call_stacks_analyze_main),
-			 ztest_unit_test(test_call_stacks_analyze_idle),
-			 ztest_unit_test(test_call_stacks_analyze_workq));
+			 ztest_1cpu_unit_test(test_call_stacks_analyze_idle),
+			 ztest_1cpu_unit_test(test_call_stacks_analyze_workq));
 	ztest_run_test_suite(profiling_api);
 }

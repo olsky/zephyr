@@ -35,6 +35,10 @@ LOG_MODULE_REGISTER(net_ctx, CONFIG_NET_CONTEXT_LOG_LEVEL);
 #include "tcp_internal.h"
 #include "net_stats.h"
 
+#if IS_ENABLED(CONFIG_NET_TCP2)
+#include "tcp2.h"
+#endif
+
 #ifndef EPFNOSUPPORT
 /* Some old versions of newlib haven't got this defined in errno.h,
  * Just use EPROTONOSUPPORT in this case
@@ -229,7 +233,12 @@ int net_context_get(sa_family_t family,
 			continue;
 		}
 
-		if (ip_proto == IPPROTO_TCP) {
+		memset(&contexts[i], 0, sizeof(contexts[i]));
+	/* FIXME - Figure out a way to get the correct network interface
+	 * as it is not known at this point yet.
+	 */
+		if (!net_if_is_ip_offloaded(net_if_get_default())
+			&& ip_proto == IPPROTO_TCP) {
 			if (net_tcp_get(&contexts[i]) < 0) {
 				break;
 			}
@@ -431,6 +440,10 @@ static int bind_default(struct net_context *context)
 
 	if (IS_ENABLED(CONFIG_NET_SOCKETS_PACKET) && family == AF_PACKET) {
 		struct sockaddr_ll ll_addr;
+
+		if (net_sll_ptr(&context->local)->sll_addr) {
+			return 0;
+		}
 
 		ll_addr.sll_family = AF_PACKET;
 		ll_addr.sll_protocol = ETH_P_ALL;
@@ -882,11 +895,10 @@ int net_context_connect(struct net_context *context,
 	}
 
 	if (addr->sa_family != net_context_get_family(context)) {
-		NET_ASSERT_INFO(addr->sa_family == \
-				net_context_get_family(context),
-				"Family mismatch %d should be %d",
-				addr->sa_family,
-				net_context_get_family(context));
+		NET_ASSERT(addr->sa_family == net_context_get_family(context),
+			   "Family mismatch %d should be %d",
+			   addr->sa_family,
+			   net_context_get_family(context));
 		ret = -EINVAL;
 		goto unlock;
 	}
@@ -1560,6 +1572,7 @@ static int context_sendto(struct net_context *context,
 		ret = net_send_data(pkt);
 	} else if (IS_ENABLED(CONFIG_NET_TCP) &&
 		   net_context_get_ip_proto(context) == IPPROTO_TCP) {
+
 		ret = context_write_data(pkt, buf, len, msghdr);
 		if (ret < 0) {
 			goto fail;
@@ -1899,7 +1912,19 @@ int net_context_recv(struct net_context *context,
 	} else {
 		if (IS_ENABLED(CONFIG_NET_SOCKETS_PACKET) &&
 		    net_context_get_family(context) == AF_PACKET) {
-			ret = recv_raw(context, cb, timeout, NULL, user_data);
+			struct sockaddr_ll addr;
+
+			addr.sll_family = AF_PACKET;
+			addr.sll_ifindex =
+				net_sll_ptr(&context->local)->sll_ifindex;
+			addr.sll_protocol =
+				net_sll_ptr(&context->local)->sll_protocol;
+			memcpy(addr.sll_addr,
+			       net_sll_ptr(&context->local)->sll_addr,
+			       sizeof(addr.sll_addr));
+
+			ret = recv_raw(context, cb, timeout,
+				       (struct sockaddr *)&addr, user_data);
 		} else if (IS_ENABLED(CONFIG_NET_SOCKETS_CAN) &&
 			   net_context_get_family(context) == AF_CAN) {
 			struct sockaddr_can local_addr = {
@@ -1958,6 +1983,11 @@ int net_context_update_recv_wnd(struct net_context *context,
 				s32_t delta)
 {
 	int ret;
+
+	if (IS_ENABLED(CONFIG_NET_OFFLOAD) &&
+		net_if_is_ip_offloaded(net_context_get_iface(context))) {
+		return 0;
+	}
 
 	k_mutex_lock(&context->lock, K_FOREVER);
 

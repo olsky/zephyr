@@ -8,9 +8,9 @@
 #include <syscall_handler.h>
 #include <kernel_structs.h>
 
-static struct _k_object *validate_any_object(void *obj)
+static struct z_object *validate_any_object(void *obj)
 {
-	struct _k_object *ko;
+	struct z_object *ko;
 	int ret;
 
 	ko = z_object_find(obj);
@@ -20,7 +20,7 @@ static struct _k_object *validate_any_object(void *obj)
 	 */
 	ret = z_object_validate(ko, K_OBJ_ANY, _OBJ_INIT_ANY);
 	if (ret != 0) {
-#ifdef CONFIG_PRINTK
+#ifdef CONFIG_LOG
 		z_dump_object_error(ret, obj, ko, K_OBJ_ANY);
 #endif
 		return NULL;
@@ -36,36 +36,36 @@ static struct _k_object *validate_any_object(void *obj)
  * To avoid double z_object_find() lookups, we don't call the implementation
  * function, but call a level deeper.
  */
-Z_SYSCALL_HANDLER(k_object_access_grant, object, thread)
+static inline void z_vrfy_k_object_access_grant(void *object,
+						struct k_thread *thread)
 {
-	struct _k_object *ko;
+	struct z_object *ko;
 
 	Z_OOPS(Z_SYSCALL_OBJ_INIT(thread, K_OBJ_THREAD));
-	ko = validate_any_object((void *)object);
+	ko = validate_any_object(object);
 	Z_OOPS(Z_SYSCALL_VERIFY_MSG(ko != NULL, "object %p access denied",
-				    (void *)object));
-	z_thread_perms_set(ko, (struct k_thread *)thread);
-
-	return 0;
+				    object));
+	z_thread_perms_set(ko, thread);
 }
+#include <syscalls/k_object_access_grant_mrsh.c>
 
-Z_SYSCALL_HANDLER(k_object_release, object)
+static inline void z_vrfy_k_object_release(void *object)
 {
-	struct _k_object *ko;
+	struct z_object *ko;
 
 	ko = validate_any_object((void *)object);
 	Z_OOPS(Z_SYSCALL_VERIFY_MSG(ko != NULL, "object %p access denied",
 				    (void *)object));
 	z_thread_perms_clear(ko, _current);
-
-	return 0;
 }
+#include <syscalls/k_object_release_mrsh.c>
 
-Z_SYSCALL_HANDLER(k_object_alloc, otype)
+static inline void *z_vrfy_k_object_alloc(enum k_objects otype)
 {
 	Z_OOPS(Z_SYSCALL_VERIFY_MSG(otype > K_OBJ_ANY && otype < K_OBJ_LAST &&
-				    otype != K_OBJ__THREAD_STACK_ELEMENT,
+				    otype != K_OBJ_THREAD_STACK_ELEMENT,
 				    "bad object type %d requested", otype));
 
-	return (u32_t)z_impl_k_object_alloc(otype);
+	return z_impl_k_object_alloc(otype);
 }
+#include <syscalls/k_object_alloc_mrsh.c>

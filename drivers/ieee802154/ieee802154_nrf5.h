@@ -61,10 +61,15 @@ struct nrf5_802154_data {
 	/* TX result, updated in radio transmit callbacks. */
 	u8_t tx_result;
 
-	/* A pointer to the received ACK frame. May be NULL if no ACK was
-	 * requested/received.
+	/* A buffer for the received ACK frame. psdu pointer be NULL if no
+	 * ACK was requested/received.
 	 */
-	u8_t *ack;
+	struct nrf5_802154_rx_frame ack_frame;
+
+	/* Callback handler of the currently ongoing energy scan.
+	 * It shall be NULL if energy scan is not in progress.
+	 */
+	energy_scan_done_cb_t energy_scan_done;
 };
 
 #endif /* ZEPHYR_DRIVERS_IEEE802154_IEEE802154_NRF5_H_ */

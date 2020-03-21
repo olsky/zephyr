@@ -10,8 +10,10 @@
 #include <device.h>
 #include <soc.h>
 #include <drivers/uart.h>
-#include <arch/arm/cortex_m/cmsis.h>
 
+#if defined(CONFIG_SHARED_IRQ)
+#include <shared_irq.h>
+#endif
 
 /*
  * UART PL011 register map structure
@@ -44,6 +46,9 @@ struct pl011_data {
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_irq_callback_user_data_t irq_cb;
 	void *irq_cb_data;
+#if defined(CONFIG_UART_PL011_SHARED_IRQ)
+	char *shared_irq_dev_name;
+#endif
 #endif
 };
 
@@ -328,6 +333,7 @@ static void pl011_irq_callback_set(struct device *dev,
 	DEV_DATA(dev)->irq_cb = cb;
 	DEV_DATA(dev)->irq_cb_data = cb_data;
 }
+#endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
 static const struct uart_driver_api pl011_driver_api = {
 	.poll_in = pl011_poll_in,
@@ -354,7 +360,6 @@ static int pl011_init(struct device *dev)
 {
 	int ret;
 	u32_t lcrh;
-	const struct uart_device_config *config = dev->config->config_info;
 
 	/* disable the uart */
 	pl011_disable(dev);
@@ -387,12 +392,14 @@ static int pl011_init(struct device *dev)
 	__ISB();
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	config->irq_config_func(dev);
+	DEV_CFG(dev)->irq_config_func(dev);
 #endif
 	pl011_enable(dev);
 
 	return 0;
 }
+
+#ifdef CONFIG_UART_INTERRUPT_DRIVEN
 void pl011_isr(void *arg)
 {
 	struct device *dev = arg;
@@ -412,20 +419,28 @@ void pl011_isr(void *arg)
 static void pl011_irq_config_func_0(struct device *dev);
 #endif
 
+#ifndef DT_INST_0_ARM_PL011_CLOCK_FREQUENCY
+#define DT_INST_0_ARM_PL011_CLOCK_FREQUENCY \
+	DT_INST_0_ARM_PL011_CLOCKS_CLOCK_FREQUENCY
+#endif
+
 static struct uart_device_config pl011_cfg_port_0 = {
-	.base = (u8_t *)DT_PL011_PORT0_BASE_ADDRESS,
-	.sys_clk_freq = DT_PL011_PORT0_CLOCK_FREQUENCY,
+	.base = (u8_t *)DT_INST_0_ARM_PL011_BASE_ADDRESS,
+	.sys_clk_freq = DT_INST_0_ARM_PL011_CLOCK_FREQUENCY,
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = pl011_irq_config_func_0,
 #endif
 };
 
 static struct pl011_data pl011_data_port_0 = {
-	.baud_rate = DT_PL011_PORT0_BAUD_RATE,
+	.baud_rate = DT_INST_0_ARM_PL011_CURRENT_SPEED,
+#if defined(CONFIG_UART_PL011_SHARED_IRQ)
+	.shared_irq_dev_name = DT_INST_0_SHARED_IRQ_LABEL,
+#endif
 };
 
 DEVICE_AND_API_INIT(pl011_port_0,
-		    DT_PL011_PORT0_NAME,
+		    DT_INST_0_ARM_PL011_LABEL,
 		    &pl011_init,
 		    &pl011_data_port_0,
 		    &pl011_cfg_port_0, PRE_KERNEL_1,
@@ -435,26 +450,35 @@ DEVICE_AND_API_INIT(pl011_port_0,
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 static void pl011_irq_config_func_0(struct device *dev)
 {
-	IRQ_CONNECT(DT_PL011_PORT0_IRQ_TX,
-		    DT_PL011_PORT0_IRQ_PRI,
-		    pl011_isr,
-		    DEVICE_GET(pl011_port_0),
-		    0);
-	irq_enable(DT_PL011_PORT0_IRQ_TX);
+#if defined(CONFIG_UART_PL011_PORT0_SHARED_IRQ)
+	struct device *shared_irq_dev;
 
-	IRQ_CONNECT(DT_PL011_PORT0_IRQ_RX,
-		    DT_PL011_PORT0_IRQ_PRI,
+	shared_irq_dev = device_get_binding(DEV_DATA(dev)->shared_irq_dev_name);
+	__ASSERT(shared_irq_dev != NULL, "Failed to get shared irq");
+	shared_irq_isr_register(shared_irq_dev, (isr_t)pl011_isr, dev);
+	shared_irq_enable(shared_irq_dev, dev);
+#else
+	IRQ_CONNECT(DT_INST_0_ARM_PL011_IRQ_TX,
+		    DT_INST_0_ARM_PL011_IRQ_TX_PRIORITY,
 		    pl011_isr,
 		    DEVICE_GET(pl011_port_0),
 		    0);
-	irq_enable(DT_PL011_PORT0_IRQ_RX);
+	irq_enable(DT_INST_0_ARM_PL011_IRQ_TX);
 
-	IRQ_CONNECT(DT_PL011_PORT0_IRQ_RXTIM,
-		    DT_PL011_PORT0_IRQ_PRI,
+	IRQ_CONNECT(DT_INST_0_ARM_PL011_IRQ_RX,
+		    DT_INST_0_ARM_PL011_IRQ_RX_PRIORITY,
 		    pl011_isr,
 		    DEVICE_GET(pl011_port_0),
 		    0);
-	irq_enable(DT_PL011_PORT0_IRQ_RXTIM);
+	irq_enable(DT_INST_0_ARM_PL011_IRQ_RX);
+
+	IRQ_CONNECT(DT_INST_0_ARM_PL011_IRQ_RXTIM,
+		    DT_INST_0_ARM_PL011_IRQ_RXTIM_PRIORITY,
+		    pl011_isr,
+		    DEVICE_GET(pl011_port_0),
+		    0);
+	irq_enable(DT_INST_0_ARM_PL011_IRQ_RXTIM);
+#endif
 }
 #endif
 
@@ -466,20 +490,28 @@ static void pl011_irq_config_func_0(struct device *dev)
 static void pl011_irq_config_func_1(struct device *dev);
 #endif
 
+#ifndef DT_INST_1_ARM_PL011_CLOCK_FREQUENCY
+#define DT_INST_1_ARM_PL011_CLOCK_FREQUENCY \
+	DT_INST_1_ARM_PL011_CLOCKS_CLOCK_FREQUENCY
+#endif
+
 static struct uart_device_config pl011_cfg_port_1 = {
-	.base = (u8_t *)DT_PL011_PORT1_BASE_ADDRESS,
-	.sys_clk_freq = DT_PL011_PORT1_CLOCK_FREQUENCY,
+	.base = (u8_t *)DT_INST_1_ARM_PL011_BASE_ADDRESS,
+	.sys_clk_freq = DT_INST_1_ARM_PL011_CLOCK_FREQUENCY,
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = pl011_irq_config_func_1,
 #endif
 };
 
 static struct pl011_data pl011_data_port_1 = {
-	.baud_rate = DT_PL011_PORT1_BAUD_RATE,
+	.baud_rate = DT_INST_1_ARM_PL011_CURRENT_SPEED,
+#if defined(CONFIG_UART_PL011_SHARED_IRQ)
+	.shared_irq_dev_name = DT_INST_1_SHARED_IRQ_LABEL,
+#endif
 };
 
 DEVICE_AND_API_INIT(pl011_port_1,
-		    DT_PL011_PORT1_NAME,
+		    DT_INST_1_ARM_PL011_LABEL,
 		    &pl011_init,
 		    &pl011_data_port_1,
 		    &pl011_cfg_port_1, PRE_KERNEL_1,
@@ -489,26 +521,35 @@ DEVICE_AND_API_INIT(pl011_port_1,
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 static void pl011_irq_config_func_1(struct device *dev)
 {
-	IRQ_CONNECT(DT_PL011_PORT1_IRQ_TX,
-		    DT_PL011_PORT1_IRQ_PRI,
-		    pl011_isr,
-		    DEVICE_GET(pl011_port_1),
-		    0);
-	irq_enable(DT_PL011_PORT1_IRQ_TX);
+#if defined(CONFIG_UART_PL011_PORT1_SHARED_IRQ)
+	struct device *shared_irq_dev;
 
-	IRQ_CONNECT(DT_PL011_PORT1_IRQ_RX,
-		    DT_PL011_PORT1_IRQ_PRI,
+	shared_irq_dev = device_get_binding(DEV_DATA(dev)->shared_irq_dev_name);
+	__ASSERT(shared_irq_dev != NULL, "Failed to get shared irq");
+	shared_irq_isr_register(shared_irq_dev, (isr_t)pl011_isr, dev);
+	shared_irq_enable(shared_irq_dev, dev);
+#else
+	IRQ_CONNECT(DT_INST_1_ARM_PL011_IRQ_TX,
+		    DT_INST_1_ARM_PL011_IRQ_TX_PRIORITY,
 		    pl011_isr,
 		    DEVICE_GET(pl011_port_1),
 		    0);
-	irq_enable(DT_PL011_PORT1_IRQ_RX);
+	irq_enable(DT_INST_1_ARM_PL011_IRQ_TX);
 
-	IRQ_CONNECT(DT_PL011_PORT1_IRQ_RXTIM,
-		    DT_PL011_PORT1_IRQ_PRI,
+	IRQ_CONNECT(DT_INST_1_ARM_PL011_IRQ_RX,
+		    DT_INST_1_ARM_PL011_IRQ_RX_PRIORITY,
 		    pl011_isr,
 		    DEVICE_GET(pl011_port_1),
 		    0);
-	irq_enable(DT_PL011_PORT1_IRQ_RXTIM);
+	irq_enable(DT_INST_1_ARM_PL011_IRQ_RX);
+
+	IRQ_CONNECT(DT_INST_1_ARM_PL011_IRQ_RXTIM,
+		    DT_INST_1_ARM_PL011_IRQ_RXTIM_PRIORITY,
+		    pl011_isr,
+		    DEVICE_GET(pl011_port_1),
+		    0);
+	irq_enable(DT_INST_1_ARM_PL011_IRQ_RXTIM);
+#endif
 }
 #endif
 

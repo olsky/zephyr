@@ -38,11 +38,11 @@ static struct eswifi_dev eswifi0; /* static instance */
 
 static int eswifi_reset(struct eswifi_dev *eswifi)
 {
-	gpio_pin_write(eswifi->resetn.dev, eswifi->resetn.pin, 0);
-	k_sleep(10);
-	gpio_pin_write(eswifi->resetn.dev, eswifi->resetn.pin, 1);
-	gpio_pin_write(eswifi->wakeup.dev, eswifi->wakeup.pin, 1);
-	k_sleep(500);
+	gpio_pin_set(eswifi->resetn.dev, eswifi->resetn.pin, 0);
+	k_sleep(K_MSEC(10));
+	gpio_pin_set(eswifi->resetn.dev, eswifi->resetn.pin, 1);
+	gpio_pin_set(eswifi->wakeup.dev, eswifi->wakeup.pin, 1);
+	k_sleep(K_MSEC(500));
 
 	/* fetch the cursor */
 	return eswifi_request(eswifi, NULL, 0, eswifi->buf,
@@ -401,6 +401,10 @@ static void eswifi_iface_init(struct net_if *iface)
 	eswifi_unlock(eswifi);
 
 	eswifi_offload_init(eswifi);
+#if defined(CONFIG_NET_SOCKETS_OFFLOAD)
+	eswifi_socket_offload_init(eswifi);
+#endif
+
 }
 
 static int eswifi_mgmt_scan(struct device *dev, scan_result_cb_t cb)
@@ -634,27 +638,28 @@ static int eswifi_init(struct device *dev)
 	eswifi->bus->init(eswifi);
 
 	eswifi->resetn.dev = device_get_binding(
-			DT_INVENTEK_ESWIFI_ESWIFI0_RESETN_GPIOS_CONTROLLER);
+			DT_INST_0_INVENTEK_ESWIFI_RESETN_GPIOS_CONTROLLER);
 	if (!eswifi->resetn.dev) {
 		LOG_ERR("Failed to initialize GPIO driver: %s",
-			    DT_INVENTEK_ESWIFI_ESWIFI0_RESETN_GPIOS_CONTROLLER);
+			    DT_INST_0_INVENTEK_ESWIFI_RESETN_GPIOS_CONTROLLER);
 		return -ENODEV;
 	}
-	eswifi->resetn.pin = DT_INVENTEK_ESWIFI_ESWIFI0_RESETN_GPIOS_PIN;
+	eswifi->resetn.pin = DT_INST_0_INVENTEK_ESWIFI_RESETN_GPIOS_PIN;
 	gpio_pin_configure(eswifi->resetn.dev, eswifi->resetn.pin,
-			   GPIO_DIR_OUT);
+			   DT_INST_0_INVENTEK_ESWIFI_RESETN_GPIOS_FLAGS |
+			   GPIO_OUTPUT_INACTIVE);
 
 	eswifi->wakeup.dev = device_get_binding(
-			DT_INVENTEK_ESWIFI_ESWIFI0_WAKEUP_GPIOS_CONTROLLER);
+			DT_INST_0_INVENTEK_ESWIFI_WAKEUP_GPIOS_CONTROLLER);
 	if (!eswifi->wakeup.dev) {
 		LOG_ERR("Failed to initialize GPIO driver: %s",
-			    DT_INVENTEK_ESWIFI_ESWIFI0_WAKEUP_GPIOS_CONTROLLER);
+			    DT_INST_0_INVENTEK_ESWIFI_WAKEUP_GPIOS_CONTROLLER);
 		return -ENODEV;
 	}
-	eswifi->wakeup.pin = DT_INVENTEK_ESWIFI_ESWIFI0_WAKEUP_GPIOS_PIN;
+	eswifi->wakeup.pin = DT_INST_0_INVENTEK_ESWIFI_WAKEUP_GPIOS_PIN;
 	gpio_pin_configure(eswifi->wakeup.dev, eswifi->wakeup.pin,
-			   GPIO_DIR_OUT);
-	gpio_pin_write(eswifi->wakeup.dev, eswifi->wakeup.pin, 1);
+			   DT_INST_0_INVENTEK_ESWIFI_WAKEUP_GPIOS_FLAGS |
+			   GPIO_OUTPUT_ACTIVE);
 
 	k_work_q_start(&eswifi->work_q, eswifi_work_q_stack,
 		       K_THREAD_STACK_SIZEOF(eswifi_work_q_stack),

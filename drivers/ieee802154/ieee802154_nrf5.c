@@ -122,10 +122,7 @@ static void nrf5_rx_thread(void *arg1, void *arg2, void *arg3)
 		rx_frame->psdu = NULL;
 
 		if (LOG_LEVEL >= LOG_LEVEL_DBG) {
-			net_analyze_stack(
-				"nRF5 rx stack",
-				Z_THREAD_STACK_BUFFER(nrf5_radio->rx_stack),
-				K_THREAD_STACK_SIZEOF(nrf5_radio->rx_stack));
+			log_stack_usage(&nrf5_radio->rx_thread);
 		}
 
 		continue;
@@ -145,7 +142,8 @@ drop:
 static enum ieee802154_hw_caps nrf5_get_capabilities(struct device *dev)
 {
 	return IEEE802154_HW_FCS | IEEE802154_HW_2_4_GHZ |
-	       IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_FILTER;
+	       IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_FILTER |
+	       IEEE802154_HW_ENERGY_SCAN;
 }
 
 
@@ -182,6 +180,30 @@ static int nrf5_set_channel(struct device *dev, u16_t channel)
 
 	return 0;
 }
+
+#ifdef CONFIG_NET_L2_OPENTHREAD
+static int nrf5_energy_scan_start(struct device *dev,
+				  u16_t duration,
+				  energy_scan_done_cb_t done_cb)
+{
+	int err = 0;
+
+	ARG_UNUSED(dev);
+
+	if (nrf5_data.energy_scan_done == NULL) {
+		nrf5_data.energy_scan_done = done_cb;
+
+		if (nrf_802154_energy_detection(duration * 1000) == false) {
+			nrf5_data.energy_scan_done = NULL;
+			err = -EPERM;
+		}
+	} else {
+		err = -EALREADY;
+	}
+
+	return err;
+}
+#endif /* CONFIG_NET_L2_OPENTHREAD */
 
 static int nrf5_set_pan_id(struct device *dev, u16_t pan_id)
 {
@@ -256,6 +278,49 @@ static int nrf5_set_txpower(struct device *dev, s16_t dbm)
 	return 0;
 }
 
+static int handle_ack(struct nrf5_802154_data *nrf5_radio)
+{
+	u8_t ack_len = nrf5_radio->ack_frame.psdu[0] - NRF5_FCS_LENGTH;
+	struct net_pkt *ack_pkt;
+	int err = 0;
+
+	ack_pkt = net_pkt_alloc_with_buffer(nrf5_radio->iface, ack_len,
+					    AF_UNSPEC, 0, K_NO_WAIT);
+	if (!ack_pkt) {
+		LOG_ERR("No free packet available.");
+		err = -ENOMEM;
+		goto free_nrf_ack;
+	}
+
+	/* Upper layers expect the frame to start at the MAC header, skip the
+	 * PHY header (1 byte).
+	 */
+	if (net_pkt_write(ack_pkt, nrf5_radio->ack_frame.psdu + 1,
+			  ack_len) < 0) {
+		LOG_ERR("Failed to write to a packet.");
+		err = -ENOMEM;
+		goto free_net_ack;
+	}
+
+	net_pkt_set_ieee802154_lqi(ack_pkt, nrf5_radio->ack_frame.lqi);
+	net_pkt_set_ieee802154_rssi(ack_pkt, nrf5_radio->ack_frame.rssi);
+
+	net_pkt_cursor_init(ack_pkt);
+
+	if (ieee802154_radio_handle_ack(nrf5_radio->iface, ack_pkt) != NET_OK) {
+		LOG_INF("ACK packet not handled - releasing.");
+	}
+
+free_net_ack:
+	net_pkt_unref(ack_pkt);
+
+free_nrf_ack:
+	nrf_802154_buffer_free_raw(nrf5_radio->ack_frame.psdu);
+	nrf5_radio->ack_frame.psdu = NULL;
+
+	return err;
+}
+
 static int nrf5_tx(struct device *dev,
 		   struct net_pkt *pkt,
 		   struct net_buf *frag)
@@ -294,14 +359,13 @@ static int nrf5_tx(struct device *dev,
 	LOG_DBG("Result: %d", nrf5_data.tx_result);
 
 	if (nrf5_radio->tx_result == NRF_802154_TX_ERROR_NONE) {
-		/* ACK frame not used currently. */
-		if (nrf5_radio->ack != NULL) {
-			nrf_802154_buffer_free_raw(nrf5_radio->ack);
+		if (nrf5_radio->ack_frame.psdu == NULL) {
+			/* No ACK was requested. */
+			return 0;
 		}
 
-		nrf5_radio->ack = NULL;
-
-		return 0;
+		/* Handle ACK packet. */
+		return handle_ack(nrf5_radio);
 	}
 
 	return -EIO;
@@ -347,9 +411,9 @@ static void nrf5_irq_config(struct device *dev)
 {
 	ARG_UNUSED(dev);
 
-	IRQ_CONNECT(NRF5_IRQ_RADIO_IRQn, NRF_802154_IRQ_PRIORITY,
+	IRQ_CONNECT(RADIO_IRQn, NRF_802154_IRQ_PRIORITY,
 		    nrf5_radio_irq, NULL, 0);
-	irq_enable(NRF5_IRQ_RADIO_IRQn);
+	irq_enable(RADIO_IRQn);
 }
 
 static int nrf5_init(struct device *dev)
@@ -368,7 +432,7 @@ static int nrf5_init(struct device *dev)
 	k_thread_create(&nrf5_radio->rx_thread, nrf5_radio->rx_stack,
 			CONFIG_IEEE802154_NRF5_RX_STACK_SIZE,
 			nrf5_rx_thread, dev, NULL, NULL,
-			K_PRIO_COOP(2), 0, 0);
+			K_PRIO_COOP(2), 0, K_NO_WAIT);
 
 	k_thread_name_set(&nrf5_radio->rx_thread, "802154 RX");
 
@@ -466,7 +530,9 @@ void nrf_802154_transmitted_raw(const uint8_t *frame, uint8_t *ack,
 	ARG_UNUSED(lqi);
 
 	nrf5_data.tx_result = NRF_802154_TX_ERROR_NONE;
-	nrf5_data.ack = ack;
+	nrf5_data.ack_frame.psdu = ack;
+	nrf5_data.ack_frame.rssi = power;
+	nrf5_data.ack_frame.lqi = lqi;
 
 	k_sem_give(&nrf5_data.tx_wait);
 }
@@ -497,6 +563,28 @@ void nrf_802154_cca_failed(nrf_802154_cca_error_t error)
 	k_sem_give(&nrf5_data.cca_wait);
 }
 
+void nrf_802154_energy_detected(uint8_t result)
+{
+	if (nrf5_data.energy_scan_done != NULL) {
+		s16_t dbm;
+		energy_scan_done_cb_t callback = nrf5_data.energy_scan_done;
+
+		nrf5_data.energy_scan_done = NULL;
+		dbm = nrf_802154_dbm_from_energy_level_calculate(result);
+		callback(net_if_get_device(nrf5_data.iface), dbm);
+	}
+}
+
+void nrf_802154_energy_detection_failed(nrf_802154_ed_error_t error)
+{
+	if (nrf5_data.energy_scan_done != NULL) {
+		energy_scan_done_cb_t callback = nrf5_data.energy_scan_done;
+
+		nrf5_data.energy_scan_done = NULL;
+		callback(net_if_get_device(nrf5_data.iface), SHRT_MAX);
+	}
+}
+
 static const struct nrf5_802154_config nrf5_radio_cfg = {
 	.irq_config_func = nrf5_irq_config,
 };
@@ -512,6 +600,9 @@ static struct ieee802154_radio_api nrf5_radio_api = {
 	.start = nrf5_start,
 	.stop = nrf5_stop,
 	.tx = nrf5_tx,
+#ifdef CONFIG_NET_L2_OPENTHREAD
+	.ed_scan = nrf5_energy_scan_start,
+#endif /* CONFIG_NET_L2_OPENTHREAD */
 	.configure = nrf5_configure,
 };
 
@@ -531,11 +622,6 @@ NET_DEVICE_INIT(nrf5_154_radio, CONFIG_IEEE802154_NRF5_DRV_NAME,
 		CONFIG_IEEE802154_NRF5_INIT_PRIO,
 		&nrf5_radio_api, L2,
 		L2_CTX_TYPE, MTU);
-
-NET_STACK_INFO_ADDR(RX, nrf5_154_radio,
-		    CONFIG_IEEE802154_NRF5_RX_STACK_SIZE,
-		    CONFIG_IEEE802154_NRF5_RX_STACK_SIZE,
-		    nrf5_data.rx_stack, 0);
 #else
 DEVICE_AND_API_INIT(nrf5_154_radio, CONFIG_IEEE802154_NRF5_DRV_NAME,
 		    nrf5_init, &nrf5_data, &nrf5_radio_cfg,

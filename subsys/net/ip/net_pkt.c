@@ -1150,7 +1150,12 @@ int net_pkt_alloc_buffer(struct net_pkt *pkt,
 #endif
 
 	if (!buf) {
-		NET_ERR("Data buffer allocation failed.");
+#if NET_LOG_LEVEL >= LOG_LEVEL_DBG
+		NET_ERR("Data buffer (%zd) allocation failed (%s:%d)",
+			alloc_len, caller, line);
+#else
+		NET_ERR("Data buffer (%zd) allocation failed.", alloc_len);
+#endif
 		return -ENOMEM;
 	}
 
@@ -1187,7 +1192,27 @@ static struct net_pkt *pkt_alloc(struct k_mem_slab *slab, s32_t timeout)
 		net_pkt_set_ipv6_next_hdr(pkt, 255);
 	}
 
-	net_pkt_set_priority(pkt, CONFIG_NET_TX_DEFAULT_PRIORITY);
+	if (&tx_pkts == slab) {
+		net_pkt_set_priority(pkt, CONFIG_NET_TX_DEFAULT_PRIORITY);
+	} else if (&rx_pkts == slab) {
+		net_pkt_set_priority(pkt, CONFIG_NET_RX_DEFAULT_PRIORITY);
+	}
+
+	if (IS_ENABLED(CONFIG_NET_PKT_RXTIME_STATS) ||
+	    IS_ENABLED(CONFIG_NET_PKT_TXTIME_STATS)) {
+		struct net_ptp_time tp = {
+			/* Use the nanosecond field to temporarily
+			 * store the cycle count as it is a 32-bit
+			 * variable. The net_pkt timestamp field is used
+			 * to calculate how long it takes the packet to travel
+			 * between network device driver and application.
+			 */
+			.nanosecond = k_cycle_get_32(),
+		};
+
+		net_pkt_set_timestamp(pkt, &tp);
+	}
+
 	net_pkt_set_vlan_tag(pkt, NET_VLAN_TAG_UNSPEC);
 
 #if NET_LOG_LEVEL >= LOG_LEVEL_DBG
@@ -1684,6 +1709,8 @@ static void clone_pkt_attributes(struct net_pkt *pkt, struct net_pkt *clone_pkt)
 
 	if (IS_ENABLED(CONFIG_NET_IPV4) && net_pkt_family(pkt) == AF_INET) {
 		net_pkt_set_ipv4_ttl(clone_pkt, net_pkt_ipv4_ttl(pkt));
+		net_pkt_set_ipv4_opts_len(clone_pkt,
+					  net_pkt_ipv4_opts_len(pkt));
 	} else if (IS_ENABLED(CONFIG_NET_IPV6) &&
 		   net_pkt_family(pkt) == AF_INET6) {
 		net_pkt_set_ipv6_hop_limit(clone_pkt,
@@ -1700,7 +1727,9 @@ static void clone_pkt_attributes(struct net_pkt *pkt, struct net_pkt *clone_pkt)
 
 struct net_pkt *net_pkt_clone(struct net_pkt *pkt, s32_t timeout)
 {
+	size_t cursor_offset = net_pkt_get_current_offset(pkt);
 	struct net_pkt *clone_pkt;
+	struct net_pkt_cursor backup;
 
 	clone_pkt = net_pkt_alloc_with_buffer(net_pkt_iface(pkt),
 					      net_pkt_get_len(pkt),
@@ -1709,10 +1738,12 @@ struct net_pkt *net_pkt_clone(struct net_pkt *pkt, s32_t timeout)
 		return NULL;
 	}
 
+	net_pkt_cursor_backup(pkt, &backup);
 	net_pkt_cursor_init(pkt);
 
 	if (net_pkt_copy(clone_pkt, pkt, net_pkt_get_len(pkt))) {
 		net_pkt_unref(clone_pkt);
+		net_pkt_cursor_restore(pkt, &backup);
 		return NULL;
 	}
 
@@ -1730,6 +1761,13 @@ struct net_pkt *net_pkt_clone(struct net_pkt *pkt, s32_t timeout)
 	clone_pkt_attributes(pkt, clone_pkt);
 
 	net_pkt_cursor_init(clone_pkt);
+
+	if (cursor_offset) {
+		net_pkt_set_overwrite(clone_pkt, true);
+		net_pkt_skip(clone_pkt, cursor_offset);
+	}
+
+	net_pkt_cursor_restore(pkt, &backup);
 
 	NET_DBG("Cloned %p to %p", pkt, clone_pkt);
 
@@ -1820,7 +1858,7 @@ int net_pkt_pull(struct net_pkt *pkt, size_t length)
 	net_pkt_cursor_backup(pkt, &backup);
 
 	while (length) {
-		u8_t left, rem;
+		size_t left, rem;
 
 		pkt_cursor_advance(pkt, false);
 

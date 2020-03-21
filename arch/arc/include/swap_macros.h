@@ -14,13 +14,9 @@
 #include <toolchain.h>
 #include <arch/cpu.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifdef _ASMLANGUAGE
 
-/* entering this macro, current is in r2 */
+/* save callee regs of current thread in r2 */
 .macro _save_callee_saved_regs
 
 	sub_s sp, sp, ___callee_saved_stack_t_SIZEOF
@@ -42,27 +38,22 @@ extern "C" {
 	st r26, [sp, ___callee_saved_stack_t_r26_OFFSET]
 	st fp,  [sp, ___callee_saved_stack_t_fp_OFFSET]
 
-#ifdef CONFIG_ARC_SECURE_FIRMWARE
-	lr r13, [_ARC_V2_SEC_STAT]
-	st_s r13, [sp, ___callee_saved_stack_t_sec_stat_OFFSET]
-#endif
-
 #ifdef CONFIG_USERSPACE
 #ifdef CONFIG_ARC_HAS_SECURE
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
 	lr r13, [_ARC_V2_SEC_U_SP]
-	st r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
+	st_s r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
 	lr r13, [_ARC_V2_SEC_K_SP]
-	st r13, [sp, ___callee_saved_stack_t_kernel_sp_OFFSET]
+	st_s r13, [sp, ___callee_saved_stack_t_kernel_sp_OFFSET]
 #else
 	lr r13, [_ARC_V2_USER_SP]
-	st r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
+	st_s r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
 	lr r13, [_ARC_V2_KERNEL_SP]
-	st r13, [sp, ___callee_saved_stack_t_kernel_sp_OFFSET]
+	st_s r13, [sp, ___callee_saved_stack_t_kernel_sp_OFFSET]
 #endif /* CONFIG_ARC_SECURE_FIRMWARE */
 #else
 	lr r13, [_ARC_V2_USER_SP]
-	st r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
+	st_s r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
 #endif
 #endif
 	st r30, [sp, ___callee_saved_stack_t_r30_OFFSET]
@@ -73,7 +64,7 @@ extern "C" {
 #endif
 
 #ifdef CONFIG_FP_SHARING
-	ld r13, [r2, ___thread_base_t_user_options_OFFSET]
+	ld_s r13, [r2, ___thread_base_t_user_options_OFFSET]
 	/* K_FP_REGS is bit 1 */
 	bbit0 r13, 1, 1f
 	lr r13, [_ARC_V2_FPU_STATUS]
@@ -98,7 +89,7 @@ extern "C" {
 	st sp, [r2, _thread_offset_to_sp]
 .endm
 
-/* entering this macro, current is in r2 */
+/* load the callee regs of thread (in r2)*/
 .macro _load_callee_saved_regs
 	/* restore stack pointer from struct k_thread */
 	ld sp, [r2, _thread_offset_to_sp]
@@ -109,7 +100,7 @@ extern "C" {
 #endif
 
 #ifdef CONFIG_FP_SHARING
-	ld r13, [r2, ___thread_base_t_user_options_OFFSET]
+	ld_s r13, [r2, ___thread_base_t_user_options_OFFSET]
 	/* K_FP_REGS is bit 1 */
 	bbit0 r13, 1, 2f
 
@@ -134,26 +125,20 @@ extern "C" {
 #ifdef CONFIG_USERSPACE
 #ifdef CONFIG_ARC_HAS_SECURE
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
-	ld r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
+	ld_s r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
 	sr r13, [_ARC_V2_SEC_U_SP]
-	ld r13, [sp, ___callee_saved_stack_t_kernel_sp_OFFSET]
+	ld_s r13, [sp, ___callee_saved_stack_t_kernel_sp_OFFSET]
 	sr r13, [_ARC_V2_SEC_K_SP]
 #else
 	ld_s r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
 	sr r13, [_ARC_V2_USER_SP]
-	ld r13, [sp, ___callee_saved_stack_t_kernel_sp_OFFSET]
+	ld_s r13, [sp, ___callee_saved_stack_t_kernel_sp_OFFSET]
 	sr r13, [_ARC_V2_KERNEL_SP]
 #endif /* CONFIG_ARC_SECURE_FIRMWARE */
 #else
-	ld r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
+	ld_s r13, [sp, ___callee_saved_stack_t_user_sp_OFFSET]
 	sr r13, [_ARC_V2_USER_SP]
 #endif
-#endif
-
-#ifdef CONFIG_ARC_SECURE_FIRMWARE
-	ld r13, [sp, ___callee_saved_stack_t_sec_stat_OFFSET]
-
-	sflag r13
 #endif
 
 	ld_s r13, [sp, ___callee_saved_stack_t_r13_OFFSET]
@@ -177,6 +162,7 @@ extern "C" {
 
 .endm
 
+/* discard callee regs */
 .macro _discard_callee_saved_regs
 	add_s sp, sp, ___callee_saved_stack_t_SIZEOF
 .endm
@@ -273,14 +259,14 @@ extern "C" {
 	 * The pc and status32 values will still be on the stack. We cannot
 	 * pop them yet because the callers of _pop_irq_stack_frame must reload
 	 * status32 differently depending on the execution context they are
-	 * running in (z_arch_switch(), firq or exception).
+	 * running in (arch_switch(), firq or exception).
 	 */
 	add_s sp, sp, ___isf_t_SIZEOF
 
 .endm
 
 /*
- * To use this macor, r2 should have the value of thread struct pointer to
+ * To use this macro, r2 should have the value of thread struct pointer to
  * _kernel.current. r3 is a scratch reg.
  */
 .macro _load_stack_check_regs
@@ -309,37 +295,237 @@ extern "C" {
 #endif /* CONFIG_ARC_SECURE_FIRMWARE */
 .endm
 
+/* check and increase the interrupt nest counter
+ * after increase, check whether nest counter == 1
+ * the result will be EQ bit of status32
+ * two temp regs are needed
+ */
+.macro _check_and_inc_int_nest_counter reg1 reg2
+#ifdef CONFIG_SMP
+	_get_cpu_id \reg1
+	ld.as \reg1, [@_curr_cpu, \reg1]
+	ld \reg2, [\reg1, ___cpu_t_nested_OFFSET]
+#else
+	mov \reg1, _kernel
+	ld \reg2, [\reg1, ___kernel_t_nested_OFFSET]
+#endif
+	add \reg2, \reg2, 1
+#ifdef CONFIG_SMP
+	st \reg2, [\reg1, ___cpu_t_nested_OFFSET]
+#else
+	st \reg2, [\reg1, ___kernel_t_nested_OFFSET]
+#endif
+	cmp \reg2, 1
+.endm
+
+/* decrease interrupt stack nest counter
+ * the counter > 0, interrupt stack is used, or
+ * not used
+ */
+.macro _dec_int_nest_counter reg1 reg2
+#ifdef CONFIG_SMP
+	_get_cpu_id \reg1
+	ld.as \reg1, [@_curr_cpu, \reg1]
+	ld \reg2, [\reg1, ___cpu_t_nested_OFFSET]
+#else
+	mov \reg1, _kernel
+	ld \reg2, [\reg1, ___kernel_t_nested_OFFSET]
+#endif
+	sub \reg2, \reg2, 1
+#ifdef CONFIG_SMP
+	st \reg2, [\reg1, ___cpu_t_nested_OFFSET]
+#else
+	st \reg2, [\reg1, ___kernel_t_nested_OFFSET]
+#endif
+.endm
 
 /* If multi bits in IRQ_ACT are set, i.e. last bit != fist bit, it's
  * in nest interrupt. The result will be EQ bit of status32
+ * need two temp reg to do this
  */
 .macro _check_nest_int_by_irq_act  reg1, reg2
 	lr \reg1, [_ARC_V2_AUX_IRQ_ACT]
+#ifdef CONFIG_ARC_SECURE_FIRMWARE
+	and \reg1, \reg1, ((1 << ARC_N_IRQ_START_LEVEL) - 1)
+#else
 	and \reg1, \reg1, 0xffff
+#endif
 	ffs \reg2, \reg1
 	fls \reg1, \reg1
 	cmp \reg1, \reg2
 .endm
 
+
+/* macro to get id of current cpu
+ * the result will be in reg (a reg)
+ */
 .macro _get_cpu_id reg
 	lr \reg, [_ARC_V2_IDENTITY]
 	xbfu \reg, \reg, 0xe8
 .endm
 
+/* macro to get the interrupt stack of current cpu
+ * the result will be in irq_sp (a reg)
+ */
 .macro _get_curr_cpu_irq_stack irq_sp
 #ifdef CONFIG_SMP
 	_get_cpu_id \irq_sp
-	ld.as \irq_sp, [@_curr_irq_stack, \irq_sp]
+	ld.as \irq_sp, [@_curr_cpu, \irq_sp]
+	ld \irq_sp, [\irq_sp, ___cpu_t_irq_stack_OFFSET]
 #else
 	mov \irq_sp, _kernel
 	ld \irq_sp, [\irq_sp, _kernel_offset_to_irq_stack]
 #endif
 .endm
 
-#endif /* _ASMLANGUAGE */
+/* macro to push aux reg through reg */
+.macro PUSHAX reg aux
+	lr \reg, [\aux]
+	st.a \reg, [sp, -4]
+.endm
 
-#ifdef __cplusplus
-}
+/* macro to pop aux reg through reg */
+.macro POPAX reg aux
+	ld.ab \reg, [sp, 4]
+	sr \reg, [\aux]
+.endm
+
+
+/* macro to store old thread call regs */
+.macro _store_old_thread_callee_regs
+
+	_save_callee_saved_regs
+#ifdef CONFIG_SMP
+	/* save old thread into switch handle which is required by
+	 * wait_for_switch
+	 */
+	st r2, [r2, ___thread_t_switch_handle_OFFSET]
 #endif
+.endm
+
+/* macro to store old thread call regs  in interrupt*/
+.macro _irq_store_old_thread_callee_regs
+#if defined(CONFIG_USERSPACE)
+/*
+ * need to remember the user/kernel status of interrupted thread, will be
+ * restored when thread switched back
+ */
+	lr r3, [_ARC_V2_AUX_IRQ_ACT]
+	and r3, r3, 0x80000000
+	push_s r3
+#endif
+	_store_old_thread_callee_regs
+.endm
+
+/* macro to load new thread callee regs */
+.macro _load_new_thread_callee_regs
+#ifdef CONFIG_ARC_STACK_CHECKING
+	_load_stack_check_regs
+#endif
+	/*
+	 * _load_callee_saved_regs expects incoming thread in r2.
+	 * _load_callee_saved_regs restores the stack pointer.
+	 */
+	_load_callee_saved_regs
+
+#if defined(CONFIG_MPU_STACK_GUARD) || defined(CONFIG_USERSPACE)
+	push_s r2
+	bl configure_mpu_thread
+	pop_s r2
+#endif
+
+	ld r3, [r2, _thread_offset_to_relinquish_cause]
+.endm
+
+
+/* when switch to thread caused by coop, some status regs need to set */
+.macro _set_misc_regs_irq_switch_from_coop
+#if defined(CONFIG_USERSPACE)
+/*
+ * when USERSPACE is enabled, according to ARCv2 ISA, SP will be switched
+ * if interrupt comes out in user mode, and will be recorded in bit 31
+ * (U bit) of IRQ_ACT. when interrupt exits, SP will be switched back
+ * according to U bit.
+ *
+ * For the case that context switches in interrupt, the target sp must be
+ * thread's kernel stack, no need to do hardware sp switch. so, U bit should
+ * be cleared.
+ */
+	lr r0, [_ARC_V2_AUX_IRQ_ACT]
+	bclr r0, r0, 31
+	sr r0, [_ARC_V2_AUX_IRQ_ACT]
+#endif
+
+#ifdef CONFIG_ARC_SECURE_FIRMWARE
+	/* must return to secure mode, so set IRM bit to 1 */
+	lr r0, [_ARC_V2_SEC_STAT]
+	bset r0, r0, _ARC_V2_SEC_STAT_IRM_BIT
+	sflag r0
+#endif
+.endm
+
+/* when switch to thread caused by irq, some status regs need to set */
+.macro _set_misc_regs_irq_switch_from_irq
+#if defined(CONFIG_USERSPACE)
+/*
+ * need to recover the user/kernel status of interrupted thread
+ */
+	pop_s r3
+	lr r2, [_ARC_V2_AUX_IRQ_ACT]
+	or r2, r2, r3
+	sr r2, [_ARC_V2_AUX_IRQ_ACT]
+#endif
+
+#ifdef CONFIG_ARC_SECURE_FIRMWARE
+	/* here need to recover SEC_STAT.IRM bit */
+	pop_s r3
+	sflag r3
+#endif
+.endm
+
+/* macro to get next switch handle in assembly */
+.macro _get_next_switch_handle
+	push_s r2
+	mov r0, sp
+	bl z_arch_get_next_switch_handle
+	pop_s  r2
+.endm
+
+/* macro to disable stack checking in assembly, need a GPR
+ * to do this
+ */
+.macro _disable_stack_checking reg
+#ifdef CONFIG_ARC_STACK_CHECKING
+#ifdef CONFIG_ARC_SECURE_FIRMWARE
+	lr \reg, [_ARC_V2_SEC_STAT]
+	bclr \reg, \reg, _ARC_V2_SEC_STAT_SSC_BIT
+	sflag \reg
+
+#else
+	lr \reg, [_ARC_V2_STATUS32]
+	bclr \reg, \reg, _ARC_V2_STATUS32_SC_BIT
+	kflag \reg
+#endif
+#endif
+.endm
+
+/* macro to enable stack checking in assembly, need a GPR
+ * to do this
+ */
+.macro _enable_stack_checking reg
+#ifdef CONFIG_ARC_STACK_CHECKING
+#ifdef CONFIG_ARC_SECURE_FIRMWARE
+	lr \reg, [_ARC_V2_SEC_STAT]
+	bset \reg, \reg, _ARC_V2_SEC_STAT_SSC_BIT
+	sflag \reg
+#else
+	lr \reg, [_ARC_V2_STATUS32]
+	bset \reg, \reg, _ARC_V2_STATUS32_SC_BIT
+	kflag \reg
+#endif
+#endif
+.endm
+
+#endif /* _ASMLANGUAGE */
 
 #endif /*  ZEPHYR_ARCH_ARC_INCLUDE_SWAP_MACROS_H_ */

@@ -164,8 +164,12 @@ int pthread_create(pthread_t *newthread, const pthread_attr_t *attr,
 	prio = posix_to_zephyr_priority(attr->priority, attr->schedpolicy);
 
 	thread = &posix_thread_pool[pthread_num];
-	pthread_mutex_init(&thread->state_lock, NULL);
-	pthread_mutex_init(&thread->cancel_lock, NULL);
+	/*
+	 * Ignore return value, as we know that Zephyr implementation
+	 * cannot fail.
+	 */
+	(void)pthread_mutex_init(&thread->state_lock, NULL);
+	(void)pthread_mutex_init(&thread->cancel_lock, NULL);
 
 	pthread_mutex_lock(&thread->cancel_lock);
 	thread->cancel_state = (1 << _PTHREAD_CANCEL_POS) & attr->flags;
@@ -592,4 +596,48 @@ int pthread_attr_destroy(pthread_attr_t *attr)
 	}
 
 	return EINVAL;
+}
+
+int pthread_setname_np(pthread_t thread, const char *name)
+{
+#ifdef CONFIG_THREAD_NAME
+	k_tid_t kthread = (k_tid_t)thread;
+
+	if (kthread == NULL) {
+		return ESRCH;
+	}
+
+	if (name == NULL) {
+		return EINVAL;
+	}
+
+	return k_thread_name_set(kthread, name);
+#else
+	ARG_UNUSED(thread);
+	ARG_UNUSED(name);
+	return 0;
+#endif
+}
+
+int pthread_getname_np(pthread_t thread, char *name, size_t len)
+{
+#ifdef CONFIG_THREAD_NAME
+	k_tid_t kthread = (k_tid_t)thread;
+
+	if (kthread == NULL) {
+		return ESRCH;
+	}
+
+	if (name == NULL) {
+		return EINVAL;
+	}
+
+	memset(name, '\0', len);
+	return k_thread_name_copy(kthread, name, len-1);
+#else
+	ARG_UNUSED(thread);
+	ARG_UNUSED(name);
+	ARG_UNUSED(len);
+	return 0;
+#endif
 }

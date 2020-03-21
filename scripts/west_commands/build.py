@@ -4,6 +4,8 @@
 
 import argparse
 import os
+import pathlib
+import shlex
 
 from west import log
 from west.configuration import config
@@ -93,7 +95,8 @@ class Build(Forceable):
                             " Otherwise the default build directory is " +
                             "created and used.")
         parser.add_argument('-t', '--target',
-                            help='''Build system target to run''')
+                            help='''Build system target ("usage"
+                            for more info; and "help" for a list)''')
         parser.add_argument('-p', '--pristine', choices=['auto', 'always',
                             'never'], action=AlwaysIfMissing, nargs='?',
                             help='''Control whether the build folder is made
@@ -198,7 +201,7 @@ class Build(Forceable):
             # passed on to CMake
             if remainder[0] == _ARG_SEPARATOR:
                 remainder = remainder[1:]
-            if len(remainder):
+            if remainder:
                 self.args.cmake_opts = remainder
         except IndexError:
             return
@@ -224,7 +227,7 @@ class Build(Forceable):
         # If we created the build directory, we must run CMake.
         log.dbg('setting up build directory', level=log.VERBOSE_EXTREME)
         # The CMake Cache has not been loaded yet, so this is safe
-        board, origin = self._find_board()
+        board, _ = self._find_board()
         source_dir = self._find_source_dir()
         app = os.path.split(source_dir)[1]
         build_dir = find_build_dir(self.args.build_dir, board=board,
@@ -301,16 +304,19 @@ class Build(Forceable):
         cached_abs = os.path.abspath(cached_app) if cached_app else None
 
         log.dbg('pristine:', self.auto_pristine, level=log.VERBOSE_EXTREME)
+
         # If the build directory specifies a source app, make sure it's
         # consistent with --source-dir.
         apps_mismatched = (source_abs and cached_abs and
-                           source_abs != cached_abs)
+            pathlib.PurePath(source_abs) != pathlib.PurePath(cached_abs))
+
         self.check_force(
             not apps_mismatched or self.auto_pristine,
             'Build directory "{}" is for application "{}", but source '
             'directory "{}" was specified; please clean it, use --pristine, '
             'or use --build-dir to set another build directory'.
             format(self.build_dir, cached_abs, source_abs))
+
         if apps_mismatched:
             self.run_cmake = True  # If they insist, we need to re-run cmake.
 
@@ -355,16 +361,6 @@ class Build(Forceable):
                 self._sanity_check_source_dir()
 
     def _run_cmake(self, board, origin, cmake_opts):
-        _banner(
-            '''build configuration:
-       source directory: {}
-       build directory: {}{}
-       BOARD: {}'''.
-            format(self.source_dir, self.build_dir,
-                   ' (created)' if self.created_build_dir else '',
-                   ('{} (origin: {})'.format(board, origin) if board
-                    else 'UNKNOWN')))
-
         if board is None and config_getboolean('board_warn', True):
             log.wrn('This looks like a fresh build and BOARD is unknown;',
                     "so it probably won't work. To fix, use",
@@ -373,7 +369,6 @@ class Build(Forceable):
                     "'west config build.board_warn false'")
 
         if not self.run_cmake:
-            log.dbg('Not generating a build system; one is present.')
             return
 
         _banner('generating a build system')
@@ -384,6 +379,10 @@ class Build(Forceable):
             cmake_opts = []
         if self.args.cmake_opts:
             cmake_opts.extend(self.args.cmake_opts)
+
+        user_args = config_get('cmake-args', None)
+        if user_args:
+            cmake_opts.extend(shlex.split(user_args))
 
         # Invoke CMake from the current working directory using the
         # -S and -B options (officially introduced in CMake 3.13.0).
@@ -417,7 +416,7 @@ class Build(Forceable):
     def _run_build(self, target):
         if target:
             _banner('running target {}'.format(target))
-        else:
+        elif self.run_cmake:
             _banner('building application')
         extra_args = ['--target', target] if target else []
         if self.args.build_opt:

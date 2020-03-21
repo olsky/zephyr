@@ -8,6 +8,11 @@
 #include <kernel.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <sys/util.h>
+
+#ifndef min
+#define min(a, b) ((a) < (b)) ? (a) : (b)
+#endif
 
 #define N_THR_E 3
 #define N_THR_T 4
@@ -61,7 +66,7 @@ static int barrier_return[N_THR_E];
 
 void *thread_top_exec(void *p1)
 {
-	int i, j, id = (int) p1;
+	int i, j, id = (int) POINTER_TO_INT(p1);
 	int policy;
 	struct sched_param schedparam;
 
@@ -185,10 +190,10 @@ void *thread_top_term(void *p1)
 {
 	pthread_t self;
 	int oldstate, policy, ret;
-	int val = (u32_t) p1;
+	int id = POINTER_TO_INT(p1);
 	struct sched_param param, getschedparam;
 
-	param.sched_priority = N_THR_T - (s32_t) p1;
+	param.sched_priority = N_THR_T - id;
 
 	self = pthread_self();
 
@@ -199,24 +204,25 @@ void *thread_top_term(void *p1)
 	zassert_false(pthread_getschedparam(self, &policy, &getschedparam),
 			"Unable to get thread priority!");
 
-	printk("Thread %d starting with a priority of %d\n", (s32_t) p1,
+	printk("Thread %d starting with a priority of %d\n",
+			id,
 			getschedparam.sched_priority);
 
-	if (val % 2) {
+	if (id % 2) {
 		ret = pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
 		zassert_false(ret, "Unable to set cancel state!");
 	}
 
-	if (val >= 2) {
+	if (id >= 2) {
 		ret = pthread_detach(self);
-		if (val == 2) {
+		if (id == 2) {
 			zassert_equal(ret, EINVAL, "re-detached thread!");
 		}
 	}
 
-	printk("Cancelling thread %d\n", (s32_t) p1);
+	printk("Cancelling thread %d\n", id);
 	pthread_cancel(self);
-	printk("Thread %d could not be cancelled\n", (s32_t) p1);
+	printk("Thread %d could not be cancelled\n", id);
 	sleep(ONE_SECOND);
 	pthread_exit(p1);
 	return NULL;
@@ -233,6 +239,8 @@ void test_posix_pthread_execution(void)
 	void *retval, *stackaddr;
 	size_t stacksize;
 	int serial_threads = 0;
+	char name[] = "thread name";
+	char getName[CONFIG_THREAD_MAX_NAME_LEN];
 
 	sem_init(&main_sem, 0, 1);
 	schedparam.sched_priority = CONFIG_NUM_COOP_PRIORITIES - 1;
@@ -281,6 +289,14 @@ void test_posix_pthread_execution(void)
 	ret = pthread_attr_destroy(&attr[0]);
 	zassert_equal(ret, EINVAL, "uninitialized attr destroyed!");
 
+	/* TESTPOINT: Try getting thread name before init */
+	ret = pthread_getname_np(newthread[0], getName, sizeof(getName));
+	zassert_equal(ret, ESRCH, "uninitialized getname!");
+
+	/* TESTPOINT: Try setting thread name before init */
+	ret = pthread_setname_np(newthread[0], name);
+	zassert_equal(ret, ESRCH, "uninitialized setname!");
+
 	/* TESTPOINT: Try creating thread before attr init */
 	ret = pthread_create(&newthread[0], &attr[0],
 				thread_top_exec, NULL);
@@ -317,11 +333,31 @@ void test_posix_pthread_execution(void)
 			      "scheduling priorities do not match!");
 
 		ret = pthread_create(&newthread[i], &attr[i], thread_top_exec,
-				(void *)i);
+				INT_TO_POINTER(i));
 
 		/* TESTPOINT: Check if thread is created successfully */
 		zassert_false(ret, "Number of threads exceed max limit");
 	}
+
+	/* TESTPOINT: Try getting thread name with no buffer */
+	ret = pthread_getname_np(newthread[0], NULL, sizeof(getName));
+	zassert_equal(ret, EINVAL, "uninitialized getname!");
+
+	/* TESTPOINT: Try setting thread name with no buffer */
+	ret = pthread_setname_np(newthread[0], NULL);
+	zassert_equal(ret, EINVAL, "uninitialized setname!");
+
+	/* TESTPOINT: Try setting thread name */
+	ret = pthread_setname_np(newthread[0], name);
+	zassert_false(ret, "Set name failed!");
+
+	/* TESTPOINT: Try getting thread name */
+	ret = pthread_getname_np(newthread[0], getName, sizeof(getName));
+	zassert_false(ret, "Get name failed!");
+
+	/* TESTPOINT: Thread names match */
+	ret = strncmp(name, getName, min(strlen(name), strlen(getName)));
+	zassert_false(ret, "Thread names don't match!");
 
 	while (!bounce_test_done()) {
 		sem_wait(&main_sem);
@@ -388,7 +424,7 @@ void test_posix_pthread_termination(void)
 		pthread_attr_setschedparam(&attr[i], &schedparam);
 		pthread_attr_setstack(&attr[i], &stack_t[i][0], STACKS);
 		ret = pthread_create(&newthread[i], &attr[i], thread_top_term,
-				     (void *)i);
+				     INT_TO_POINTER(i));
 
 		zassert_false(ret, "Not enough space to create new thread");
 	}

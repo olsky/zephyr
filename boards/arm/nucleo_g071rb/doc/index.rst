@@ -83,6 +83,8 @@ The Zephyr nucleo_g071rb board configuration supports the following hardware fea
 +-----------+------------+-------------------------------------+
 | Interface | Controller | Driver/Component                    |
 +===========+============+=====================================+
+| MPU       | on-chip    | arm memory protection unit          |
++-----------+------------+-------------------------------------+
 | NVIC      | on-chip    | nested vector interrupt controller  |
 +-----------+------------+-------------------------------------+
 | UART      | on-chip    | serial port-polling;                |
@@ -93,6 +95,8 @@ The Zephyr nucleo_g071rb board configuration supports the following hardware fea
 | GPIO      | on-chip    | gpio                                |
 +-----------+------------+-------------------------------------+
 | CLOCK     | on-chip    | reset and clock control             |
++-----------+------------+-------------------------------------+
+| WATCHDOG  | on-chip    | independent watchdog                |
 +-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported in this Zephyr port.

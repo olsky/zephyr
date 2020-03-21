@@ -31,9 +31,17 @@
 #endif
 
 #ifdef CONFIG_MQTT_LIB_TLS
+#ifdef CONFIG_MQTT_LIB_WEBSOCKET
+#define SERVER_PORT		9001
+#else
 #define SERVER_PORT		8883
+#endif /* CONFIG_MQTT_LIB_WEBSOCKET */
+#else
+#ifdef CONFIG_MQTT_LIB_WEBSOCKET
+#define SERVER_PORT		9001
 #else
 #define SERVER_PORT		1883
+#endif /* CONFIG_MQTT_LIB_WEBSOCKET */
 #endif
 
 #define APP_SLEEP_MSECS		500
@@ -41,8 +49,6 @@
 #define APP_NET_INIT_TIMEOUT    10000
 
 #define APP_CONNECT_TRIES	10
-
-#define APP_MAX_ITERATIONS	100
 
 #define APP_MQTT_BUFFER_SIZE	128
 

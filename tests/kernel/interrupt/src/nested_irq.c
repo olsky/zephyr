@@ -7,6 +7,7 @@
 
 #define DURATION 5
 struct k_timer timer;
+struct k_timer irqlock_timer;
 
 /* This tests uses two IRQ lines, selected within the range of IRQ lines
  * available on the target SOC the test executes on (and starting from
@@ -23,13 +24,15 @@ struct k_timer timer;
  * in all other architectures, system timer is considered
  * to be in priority 0.
  */
-#if defined(CONFIG_ARM)
-	#define ISR0_PRIO 2
-	#define ISR1_PRIO 1
+#if defined(CONFIG_CPU_CORTEX_M)
+u32_t irq_line_0;
+u32_t irq_line_1;
+#define ISR0_PRIO 2
+#define ISR1_PRIO 1
 #else
-	#define ISR0_PRIO 1
-	#define ISR1_PRIO 0
-#endif
+#define ISR0_PRIO 1
+#define ISR1_PRIO 0
+#endif /* CONFIG_CPU_CORTEX_M */
 
 #define MS_TO_US(ms)  (K_MSEC(ms) * USEC_PER_MSEC)
 volatile u32_t new_val;
@@ -53,21 +56,38 @@ void isr1(void *param)
 static void handler(struct k_timer *timer)
 {
 	ARG_UNUSED(timer);
+#if defined(CONFIG_CPU_CORTEX_M)
+	irq_enable(irq_line_1);
+	trigger_irq(irq_line_1);
+#else
 	irq_enable(IRQ_LINE(ISR1_OFFSET));
 	trigger_irq(IRQ_LINE(ISR1_OFFSET));
+#endif /* CONFIG_CPU_CORTEX_M */
 }
 #else
 void handler(void)
 {
 	ztest_test_skip();
 }
-#endif
+#endif /* NO_TRIGGER_FROM_SW */
 
 void isr0(void *param)
 {
 	ARG_UNUSED(param);
 	printk("%s running !!\n", __func__);
+#if defined(CONFIG_BOARD_QEMU_CORTEX_M0)
+	/* QEMU Cortex-M0 timer emulation appears to not capturing the
+	 * current time accurately, resulting in erroneous busy wait
+	 * implementation.
+	 *
+	 * Work-around:
+	 * Increase busy-loop duration to ensure the timer interrupt will fire
+	 * during the busy loop waiting.
+	 */
+	k_busy_wait(MS_TO_US(1000));
+#else
 	k_busy_wait(MS_TO_US(10));
+#endif
 	printk("%s execution completed !!\n", __func__);
 	zassert_equal(new_val, old_val, "Nested interrupt is not working\n");
 }
@@ -82,13 +102,26 @@ void isr0(void *param)
 #ifndef NO_TRIGGER_FROM_SW
 void test_nested_isr(void)
 {
+#if defined(CONFIG_CPU_CORTEX_M)
+	irq_line_0 = get_available_nvic_line(CONFIG_NUM_IRQS);
+	irq_line_1 = get_available_nvic_line(irq_line_0);
+	arch_irq_connect_dynamic(irq_line_0, ISR0_PRIO, isr0, NULL, 0);
+	arch_irq_connect_dynamic(irq_line_1, ISR1_PRIO, isr1, NULL, 0);
+#else
 	IRQ_CONNECT(IRQ_LINE(ISR0_OFFSET), ISR0_PRIO, isr0, NULL, 0);
 	IRQ_CONNECT(IRQ_LINE(ISR1_OFFSET), ISR1_PRIO, isr1, NULL, 0);
+#endif /* CONFIG_CPU_CORTEX_M */
 
 	k_timer_init(&timer, handler, NULL);
-	k_timer_start(&timer, DURATION, 0);
+	k_timer_start(&timer, DURATION, K_NO_WAIT);
+
+#if defined(CONFIG_CPU_CORTEX_M)
+	irq_enable(irq_line_0);
+	trigger_irq(irq_line_0);
+#else
 	irq_enable(IRQ_LINE(ISR0_OFFSET));
 	trigger_irq(IRQ_LINE(ISR0_OFFSET));
+#endif /* CONFIG_CPU_CORTEX_M */
 
 }
 #else
@@ -96,28 +129,42 @@ void test_nested_isr(void)
 {
 	ztest_test_skip();
 }
-#endif
+#endif /* NO_TRIGGER_FROM_SW */
 
 static void timer_handler(struct k_timer *timer)
 {
 	ARG_UNUSED(timer);
 	check_lock_new = 0xBEEF;
-}
-
-static void offload_function(void *param)
-{
-	ARG_UNUSED(param);
-
-	zassert_true(z_is_in_isr(), "Not in IRQ context!");
-	k_timer_init(&timer, timer_handler, NULL);
-	k_busy_wait(MS_TO_US(1));
-	k_timer_start(&timer, DURATION, 0);
-	zassert_not_equal(check_lock_new, check_lock_old,
-		"Interrupt locking didn't work properly");
+	printk("timer fired\n");
 }
 
 void test_prevent_interruption(void)
 {
-	irq_offload(offload_function, NULL);
-	k_timer_stop(&timer);
+	int key;
+
+	printk("locking interrupts\n");
+	key = irq_lock();
+
+	check_lock_new = 0;
+
+	k_timer_init(&irqlock_timer, timer_handler, NULL);
+
+	/* Start the timer and busy-wait for a bit with IRQs locked. The
+	 * timer ought to have fired during this time if interrupts weren't
+	 * locked -- but since they are, check_lock_new isn't updated.
+	 */
+	k_timer_start(&irqlock_timer, DURATION, K_NO_WAIT);
+	k_busy_wait(MS_TO_US(1000));
+	zassert_not_equal(check_lock_new, check_lock_old,
+		"Interrupt locking didn't work properly");
+
+	printk("unlocking interrupts\n");
+	irq_unlock(key);
+
+	k_busy_wait(MS_TO_US(1000));
+
+	zassert_equal(check_lock_new, check_lock_old,
+		"timer should have fired");
+
+	k_timer_stop(&irqlock_timer);
 }

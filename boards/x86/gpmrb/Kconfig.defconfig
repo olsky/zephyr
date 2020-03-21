@@ -1,30 +1,16 @@
 # Copyright (c) 2019 Intel Corporation
-#
 # SPDX-License-Identifier: Apache-2.0
 
 if BOARD_GPMRB
+
+config MULTIBOOT
+	default n
 
 config BOARD
 	default "gpmrb"
 
 config BUILD_OUTPUT_STRIPPED
 	default y
-
-if UART_NS16550
-
-config UART_NS16550_PORT_0
-	default y
-
-config UART_NS16550_PORT_1
-	default y
-
-config UART_NS16550_PORT_2
-	default y
-
-config UART_NS16550_PORT_3
-	default y
-
-endif # UART_NS16550
 
 if I2C
 
