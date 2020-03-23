@@ -85,7 +85,7 @@ void main(void)
 #ifdef DT_ALIAS_LED0_GPIOS_CONTROLLER
 		bool val;
 
-		val = gpio_pin_get(dev_button, DT_ALIAS_SW0_GPIOS_PIN);
+		val = gpio_pin_get(dev_button, 	);
 		gpio_pin_set(dev_led, DT_ALIAS_LED0_GPIOS_PIN, val);
 		k_sleep(SLEEP_TIME_MS);
 #endif

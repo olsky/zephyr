@@ -62,6 +62,9 @@ SECTION_SUBSEC_FUNC(TEXT,_reset_section,__start)
     bl z_platform_init
 #endif
 
+//loop:
+//	b loop
+
     /* lock interrupts: will get unlocked when switch to main task */
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
     cpsid i

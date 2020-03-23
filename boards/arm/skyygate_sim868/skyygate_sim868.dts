@@ -66,9 +66,23 @@
 /* Skyygate Sim868 board uses USART2 to 
  * interface with the SIM Modem device. */
 &usart2 {
+	current-speed = <115200>;
+	status = "okay";
+	hw-flow-control;
+	/* hw-flow-control; needed? we should be able to work without it as well.. 
+
+		in the beginning, i want to keep things simple.. So lets keep disabled..
+		ok!
+	*/
+};
+
+/* Skyygate Sim868 board uses USART4 to 
+ * interface with the SIM GNSS device. 
+&usart4 {
 	current-speed = <9600>;
 	status = "okay";
 };
+*/
 
 &spi3 {
 	status = "okay";
