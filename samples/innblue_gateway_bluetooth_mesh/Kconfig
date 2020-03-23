@@ -1,0 +1,42 @@
+#
+# Copyright (c) 2019 innblue
+#
+
+menu "Gateway-91 MQTT Settings"
+
+config MQTT_PORT
+	int "The Broker connection Port, defaults to 1883"
+	default 1883
+	depends on NET_CONFIG_SETTINGS
+
+
+config MQTT_PUB_TOPIC
+	string "The Broker topic name for publishing events from mesh"
+	default "sensors"
+	depends on NET_CONFIG_SETTINGS
+
+config MQTT_SUB_TOPIC
+	string "The Broker topic name for subscribing events to mesh"
+	default "commands"
+	depends on NET_CONFIG_SETTINGS
+
+choice
+	prompt "Mesage publisher Quality Of Service"
+	default MQTT_QOS_0_AT_MOST_ONCE 
+
+config MQTT_QOS_0_AT_MOST_ONCE
+       bool "MQTT_QOS_0_AT_MOST_ONCE"
+
+config MQTT_QOS_1_AT_LEAST_ONCE
+       bool "MQTT_QOS_1_AT_LEAST_ONCE"
+
+config MQTT_QOS_2_EXACTLY_ONCE
+       bool "MQTT_QOS_2_EXACTLY_ONCE"
+
+endchoice
+
+endmenu
+
+menu "Zephyr Kernel"
+source "$ZEPHYR_BASE/Kconfig.zephyr"
+endmenu
