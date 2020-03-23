@@ -6,6 +6,10 @@
 #define LED_PORT	   "GPIO_0" //DT_ALIAS_LED0_GPIOS_CONTROLLER
 
 #ifdef CONFIG_BOARD_NRF9160_PCA10090NS
+	#define LED_MODEM_CTRL     LED_PORT
+	#define LED_RECONNECT_CTRL LED_PORT
+	#define LED_MQTT_CTRL      LED_PORT
+	#define LED_UART_CTRL      LED_PORT
 	// LTE modem led
 	#define LED_MODEM DT_ALIAS_LED0_GPIOS_PIN
 	// reconnect
@@ -15,6 +19,10 @@
 	// uart activity
 	#define LED_UART DT_ALIAS_LED3_GPIOS_PIN
 #elif defined(CONFIG_BOARD_NRF9160_PCA20035NS)
+	#define LED_MODEM_CTRL     LED_PORT
+	#define LED_RECONNECT_CTRL LED_PORT
+	#define LED_MQTT_CTRL      LED_PORT
+	#define LED_UART_CTRL      LED_PORT
 	// LTE modem led
 	#define LED_MODEM DT_ALIAS_LED0_GPIOS_PIN
 	// reconnect
@@ -24,6 +32,10 @@
 	// uart activity
 	#define LED_UART DT_ALIAS_LED2_GPIOS_PIN
 #elif defined(CONFIG_BOARD_DISCO_L475_IOT1)
+	#define LED_MODEM_CTRL     LED_PORT
+	#define LED_RECONNECT_CTRL LED_PORT
+	#define LED_MQTT_CTRL      LED_PORT
+	#define LED_UART_CTRL      LED_PORT
 	// LTE modem led
 	#define LED_MODEM DT_ALIAS_LED0_GPIOS_PIN
 	// reconnect
@@ -32,6 +44,19 @@
 	#define LED_MQTT DT_ALIAS_LED1_GPIOS_PIN
 	// uart activity
 	#define LED_UART DT_ALIAS_LED1_GPIOS_PIN
+#elif defined(CONFIG_BOARD_SKYYGATE_SIM868)
+	#define LED_MODEM_CTRL     DT_GPIO_LEDS_LED0_GPIOS_CONTROLLER
+	#define LED_RECONNECT_CTRL DT_GPIO_LEDS_LED1_GPIOS_CONTROLLER
+	#define LED_MQTT_CTRL      DT_GPIO_LEDS_LED2_GPIOS_CONTROLLER
+	#define LED_UART_CTRL      DT_GPIO_LEDS_LED3_GPIOS_CONTROLLER
+	// LTE modem led
+	#define LED_MODEM     DT_ALIAS_LED0_GPIOS_PIN
+	// reconnect
+	#define LED_RECONNECT DT_ALIAS_LED1_GPIOS_PIN
+	// mqtt activity
+	#define LED_MQTT      DT_ALIAS_LED2_GPIOS_PIN
+	// uart activity
+	#define LED_UART      DT_ALIAS_LED3_GPIOS_PIN
 #endif
 
 
@@ -42,8 +67,9 @@ static struct k_thread thread_data;
 
 K_MUTEX_DEFINE(led_modem_mutex);
 
-static struct device *dev;
+//static struct device *dev;
 struct led {
+	struct device *dev;
 	u32_t pin;
 	u32_t blinks_left;
 };
@@ -68,9 +94,9 @@ static void blink_down(struct led *light) {
 		return;
 
 	if (light->blinks_left % 2 == 0)
-		gpio_pin_write(dev, light->pin, 1);
+		gpio_pin_set(light->dev, light->pin, 1);
 	else
-		gpio_pin_write(dev, light->pin, 0);
+		gpio_pin_set(light->dev, light->pin, 0);
 
 	light->blinks_left--;
 }
@@ -84,11 +110,11 @@ static void blink_forever(struct led *light, struct k_mutex *mutex) {
 		goto exit;
 
 	if (light->blinks_left % 2) {
-		gpio_pin_write(dev, light->pin, 1);
+		gpio_pin_set(light->dev, light->pin, 1);
 		light->blinks_left = 2;
 	}
 	else {
-		gpio_pin_write(dev, light->pin, 0);
+		gpio_pin_set(light->dev, light->pin, 0);
 		light->blinks_left = 1;
 	}
 
@@ -111,13 +137,19 @@ static void initialise() {
 
 	if (initialised)
 		return;
+	
 
-	dev = device_get_binding(LED_PORT);
+	// set device
+	led_uart.dev  = device_get_binding(LED_UART_CTRL);
+	led_mqtt.dev  = device_get_binding(LED_MQTT_CTRL);
+	led_modem.dev = device_get_binding(LED_MODEM_CTRL);
+
+
 	/* Set LED pin as output */
-	gpio_pin_configure(dev, LED_MODEM, GPIO_DIR_OUT);
-	gpio_pin_configure(dev, LED_RECONNECT, GPIO_DIR_OUT);
-	gpio_pin_configure(dev, LED_UART, GPIO_DIR_OUT);
-	gpio_pin_configure(dev, LED_MQTT, GPIO_DIR_OUT);
+	gpio_pin_configure(led_modem.dev, LED_MODEM, GPIO_DIR_OUT);
+	//gpio_pin_configure(dev, LED_RECONNECT, GPIO_DIR_OUT);
+	gpio_pin_configure(led_uart.dev, LED_UART, GPIO_DIR_OUT);
+	gpio_pin_configure(led_mqtt.dev, LED_MQTT, GPIO_DIR_OUT);
 
 	k_thread_create(&thread_data, thread_stack,
 		K_THREAD_STACK_SIZEOF(thread_stack), state_thread,
@@ -145,7 +177,7 @@ static void modem_connected (bool connected)
 		k_mutex_lock(&led_modem_mutex, K_FOREVER);
 		led_modem.blinks_left = 0;
 		k_mutex_unlock(&led_modem_mutex);
-		gpio_pin_write(dev, led_modem.pin, 1);
+		gpio_pin_set(led_modem.dev, led_modem.pin, 1);
 	} else {
 		k_mutex_lock(&led_modem_mutex, K_FOREVER);
 		led_modem.blinks_left = 1;
