@@ -32,10 +32,10 @@
 	// uart activity
 	#define LED_UART DT_ALIAS_LED2_GPIOS_PIN
 #elif defined(CONFIG_BOARD_DISCO_L475_IOT1)
-	#define LED_MODEM_CTRL     LED_PORT
+	#define LED_MODEM_CTRL     DT_ALIAS_LED0_GPIOS_CONTROLLER
 	#define LED_RECONNECT_CTRL LED_PORT
-	#define LED_MQTT_CTRL      LED_PORT
-	#define LED_UART_CTRL      LED_PORT
+	#define LED_MQTT_CTRL      DT_ALIAS_LED1_GPIOS_CONTROLLER
+	#define LED_UART_CTRL      DT_ALIAS_LED1_GPIOS_CONTROLLER
 	// LTE modem led
 	#define LED_MODEM DT_ALIAS_LED0_GPIOS_PIN
 	// reconnect
@@ -62,7 +62,7 @@
 
 #define BLINK_DURATION_MS (250)
 
-static K_THREAD_STACK_DEFINE(thread_stack, 256);
+static K_THREAD_STACK_DEFINE(thread_stack, 512);
 static struct k_thread thread_data;
 
 K_MUTEX_DEFINE(led_modem_mutex);
