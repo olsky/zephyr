@@ -35,6 +35,14 @@ config MQTT_QOS_2_EXACTLY_ONCE
 
 endchoice
 
+config SYSTEM_STATE_THREAD_STACK_SIZE
+	int
+	prompt "System State thread stack size"
+	default 512 if NO_OPTIMIZATIONS
+	default 256
+	help
+	  Stack size for the System State thread.
+
 endmenu
 
 menu "Zephyr Kernel"

@@ -32,14 +32,11 @@
 	// uart activity
 	#define LED_UART DT_ALIAS_LED2_GPIOS_PIN
 #elif defined(CONFIG_BOARD_DISCO_L475_IOT1)
-	#define LED_MODEM_CTRL     LED_PORT
-	#define LED_RECONNECT_CTRL LED_PORT
-	#define LED_MQTT_CTRL      LED_PORT
-	#define LED_UART_CTRL      LED_PORT
+	#define LED_MODEM_CTRL     DT_ALIAS_LED0_GPIOS_CONTROLLER
+	#define LED_MQTT_CTRL      DT_ALIAS_LED1_GPIOS_CONTROLLER
+	#define LED_UART_CTRL      DT_ALIAS_LED1_GPIOS_CONTROLLER
 	// LTE modem led
 	#define LED_MODEM DT_ALIAS_LED0_GPIOS_PIN
-	// reconnect
-	#define LED_RECONNECT DT_ALIAS_LED1_GPIOS_PIN
 	// mqtt activity
 	#define LED_MQTT DT_ALIAS_LED1_GPIOS_PIN
 	// uart activity
@@ -62,7 +59,7 @@
 
 #define BLINK_DURATION_MS (250)
 
-static K_THREAD_STACK_DEFINE(thread_stack, 256);
+static K_THREAD_STACK_DEFINE(thread_stack, CONFIG_SYSTEM_STATE_THREAD_STACK_SIZE);
 static struct k_thread thread_data;
 
 K_MUTEX_DEFINE(led_modem_mutex);
@@ -147,7 +144,7 @@ static void initialise() {
 
 	/* Set LED pin as output */
 	gpio_pin_configure(led_modem.dev, LED_MODEM, GPIO_OUTPUT);
-	//gpio_pin_configure(dev, LED_RECONNECT, GPIO_DIR_OUT);
+	//gpio_pin_configure(dev, LED_RECONNECT, GPIO_OUTPUT);
 	gpio_pin_configure(led_uart.dev, LED_UART, GPIO_OUTPUT);
 	gpio_pin_configure(led_mqtt.dev, LED_MQTT, GPIO_OUTPUT);
 
