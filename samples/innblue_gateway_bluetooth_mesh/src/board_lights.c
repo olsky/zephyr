@@ -146,10 +146,10 @@ static void initialise() {
 
 
 	/* Set LED pin as output */
-	gpio_pin_configure(led_modem.dev, LED_MODEM, GPIO_DIR_OUT);
+	gpio_pin_configure(led_modem.dev, LED_MODEM, GPIO_OUTPUT);
 	//gpio_pin_configure(dev, LED_RECONNECT, GPIO_DIR_OUT);
-	gpio_pin_configure(led_uart.dev, LED_UART, GPIO_DIR_OUT);
-	gpio_pin_configure(led_mqtt.dev, LED_MQTT, GPIO_DIR_OUT);
+	gpio_pin_configure(led_uart.dev, LED_UART, GPIO_OUTPUT);
+	gpio_pin_configure(led_mqtt.dev, LED_MQTT, GPIO_OUTPUT);
 
 	k_thread_create(&thread_data, thread_stack,
 		K_THREAD_STACK_SIZEOF(thread_stack), state_thread,
