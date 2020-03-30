@@ -1957,17 +1957,16 @@ static inline s64_t k_uptime_delta(s64_t *reftime)
  * This routine computes the elapsed time between the current system uptime
  * and an earlier reference time, in milliseconds.
  *
- * This routine can be more efficient than k_uptime_delta(), as it reduces the
- * need for interrupt locking and 64-bit math. However, the 32-bit result
- * cannot hold an elapsed time larger than approximately 50 days, so the
- * caller must handle possible rollovers.
+ * This is a wrapper around k_uptime_delta().
  *
  * @param reftime Pointer to a reference time, which is updated to the current
  *                uptime upon return.
  *
  * @return Elapsed time.
+ *
+ * @deprecated in 2.3 release, replace with k_uptime_delta()
  */
-static inline u32_t k_uptime_delta_32(s64_t *reftime)
+__deprecated static inline u32_t k_uptime_delta_32(s64_t *reftime)
 {
 	return (u32_t)k_uptime_delta(reftime);
 }
@@ -4998,6 +4997,9 @@ extern void z_handle_obj_poll_events(sys_dlist_t *events, u32_t state);
  * for making the CPU idle and triggering any type of power management.
  * However, in some more constrained systems, such as a single-threaded system,
  * the only thread would be responsible for this if needed.
+ *
+ * @note In some architectures, before returning, the function unmasks interrupts
+ * unconditionally.
  *
  * @return N/A
  * @req K-CPU-IDLE-001

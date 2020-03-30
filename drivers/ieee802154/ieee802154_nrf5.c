@@ -20,6 +20,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <kernel.h>
 #include <arch/cpu.h>
+#include <debug/stack.h>
 
 #include <soc.h>
 #include <device.h>
@@ -489,6 +490,14 @@ int nrf5_configure(struct device *dev, enum ieee802154_config_type type,
 
 		break;
 
+	case IEEE802154_CONFIG_PAN_COORDINATOR:
+		nrf_802154_pan_coord_set(config->pan_coordinator);
+		break;
+
+	case IEEE802154_CONFIG_PROMISCUOUS:
+		nrf_802154_promiscuous_set(config->promiscuous);
+		break;
+
 	default:
 		return -EINVAL;
 	}
@@ -618,7 +627,7 @@ static struct ieee802154_radio_api nrf5_radio_api = {
 
 #if defined(CONFIG_NET_L2_IEEE802154) || defined(CONFIG_NET_L2_OPENTHREAD)
 NET_DEVICE_INIT(nrf5_154_radio, CONFIG_IEEE802154_NRF5_DRV_NAME,
-		nrf5_init, &nrf5_data, &nrf5_radio_cfg,
+		nrf5_init, device_pm_control_nop, &nrf5_data, &nrf5_radio_cfg,
 		CONFIG_IEEE802154_NRF5_INIT_PRIO,
 		&nrf5_radio_api, L2,
 		L2_CTX_TYPE, MTU);

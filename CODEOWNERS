@@ -22,7 +22,7 @@
 /arch/arm/core/aarch64/                   @carlocaione
 /arch/arm/include/aarch32/cortex_m/cmse.h @ioannisg
 /arch/arm/include/aarch64/                @carlocaione
-/arch/arm/core/aarch32/cortex_r/          @MaureenHelm @galak @ioannisg @bbolen @stephanosio
+/arch/arm/core/aarch32/cortex_a_r/        @MaureenHelm @galak @ioannisg @bbolen @stephanosio
 /arch/common/                             @andrewboie @ioannisg @andyross
 /soc/arc/snps_*/                          @vonhust @ruuddw
 /soc/nios2/                               @nashif @wentongwu
@@ -74,6 +74,7 @@
 /boards/arm/google_*/                     @jackrosenthal
 /boards/arm/hexiwear*/                    @MaureenHelm
 /boards/arm/hexiwear*/doc/                @MaureenHelm @MeganHansen
+/boards/arm/ip_k66f/                      @parthitce
 /boards/arm/lpcxpresso*/                  @MaureenHelm
 /boards/arm/lpcxpresso*/doc/              @MaureenHelm @MeganHansen
 /boards/arm/mimxrt*/                      @MaureenHelm
@@ -98,6 +99,7 @@
 /boards/arm/stm32f3_disco/                @ydamigos
 /boards/arm/stm32*_eval/                  @erwango
 /boards/common/                           @mbolivar-nordic
+/boards/deprecated.cmake                  @tejlmand
 /boards/nios2/                            @wentongwu
 /boards/nios2/altera_max10/               @wentongwu
 /boards/arm/stm32_min_dev/                @cbsiddharth
@@ -111,14 +113,16 @@
 /boards/xtensa/intel_s1000_crb/           @sathishkuttan @dcpleung
 /boards/xtensa/odroid_go/                 @ydamigos
 # All cmake related files
-/cmake/                                   @SebastianBoe @nashif
-/CMakeLists.txt                           @SebastianBoe @nashif
+/cmake/                                   @tejlmand @nashif
+/CMakeLists.txt                           @tejlmand @nashif
 /doc/                                     @dbkinder
 /doc/guides/coccinelle.rst                @himanshujha199640 @JuliaLawall
 /doc/CMakeLists.txt                       @carlescufi
 /doc/scripts/                             @carlescufi
 /doc/guides/bluetooth/                    @joerchan @jhedberg @Vudentz
+/doc/guides/dts/                          @galak @mbolivar-nordic
 /doc/reference/bluetooth/                 @joerchan @jhedberg @Vudentz
+/doc/reference/devicetree/                @galak @mbolivar-nordic
 /doc/reference/kernel/other/resource_mgmt.rst @pabigot
 /doc/reference/networking/can*            @alexanderwachter
 /drivers/debug/                           @nashif
@@ -142,6 +146,7 @@
 /drivers/eeprom/                          @henrikbrixandersen
 /drivers/eeprom/eeprom_stm32.c            @KwonTae-young
 /drivers/entropy/*rv32m1*                 @MaureenHelm
+/drivers/entropy/*gecko*                  @chrta
 /drivers/espi/                            @albertofloyd @franciscomunoz @scottwcpg
 /drivers/ps2/                             @albertofloyd @franciscomunoz @scottwcpg
 /drivers/kscan/                           @albertofloyd @franciscomunoz @scottwcpg
@@ -170,6 +175,7 @@
 /drivers/ipm/ipm_mhu*                     @karl-zh
 /drivers/ipm/Kconfig.nrfx                 @masz-nordic @ioannisg
 /drivers/ipm/Kconfig.nrfx_ipc_channel     @masz-nordic @ioannisg
+/drivers/ipm/ipm_cavs_idc*                @dcpleung
 /drivers/ipm/ipm_nrfx_ipc.c               @masz-nordic @ioannisg
 /drivers/ipm/ipm_nrfx_ipc.h               @masz-nordic @ioannisg
 /drivers/ipm/ipm_stm32_ipcc.c             @arnopo
@@ -210,8 +216,9 @@
 /drivers/timer/altera_avalon_timer_hal.c  @wentongwu
 /drivers/timer/riscv_machine_timer.c      @nategraff-sifive @kgugala @pgielda
 /drivers/timer/litex_timer.c              @mateusz-holenko @kgugala @pgielda
-/drivers/timer/xlnx_psttc_timer.c         @wjliang
+/drivers/timer/xlnx_psttc_timer*          @wjliang @stephanosio
 /drivers/timer/cc13x2_cc26x2_rtc_timer.c  @vanti
+/drivers/timer/cavs_timer.c               @dcpleung
 /drivers/usb/                             @jfischer-phytec-iot @finikorg
 /drivers/usb/device/usb_dc_stm32.c        @ydamigos @loicpoulain
 /drivers/video/                           @loicpoulain
@@ -240,6 +247,7 @@
 /dts/arm/microchip/                       @franciscomunoz @albertofloyd @scottwcpg
 /dts/arm/silabs/efm32gg11b*               @oanerer
 /dts/arm/silabs/efm32_jg_pg*              @chrta
+/dts/arm/silabs/efr32bg13p*               @mnkp
 /dts/arm/silabs/efm32jg12b*               @chrta
 /dts/arm/silabs/efm32pg12b*               @chrta
 /dts/riscv/microsemi-miv.dtsi             @galak
@@ -266,8 +274,6 @@
 /dts/posix/                               @aescolar @vanwinkeljan @daor-oti
 /dts/bindings/sensor/*bme680*             @BoschSensortec
 /dts/bindings/sensor/st*                  @avisconti
-/ext/hal/cmsis/                           @MaureenHelm @galak @stephanosio
-/ext/lib/crypto/tinycrypt/                @ceolin
 /include/                                 @nashif @carlescufi @galak @MaureenHelm
 /include/drivers/adc.h                    @anangl
 /include/drivers/can.h                    @alexanderwachter
@@ -292,7 +298,7 @@
 /include/arch/arc/arch.h                  @andrewboie
 /include/arch/arc/v2/irq.h                @andrewboie
 /include/arch/arm/aarch32/                @MaureenHelm @galak @ioannisg
-/include/arch/arm/aarch32/cortex_r/       @stephanosio
+/include/arch/arm/aarch32/cortex_a_r/     @stephanosio
 /include/arch/arm/aarch64/                @carlocaione
 /include/arch/arm/aarch32/irq.h           @andrewboie
 /include/arch/nios2/                      @andrewboie
@@ -309,6 +315,7 @@
 /include/tracing/                         @wentongwu @nashif
 /include/debug/                           @nashif
 /include/device.h                         @wentongwu @nashif
+/include/devicetree.h                     @galak
 /include/display/                         @vanwinkeljan
 /include/dt-bindings/clock/kinetis_mcg.h  @henrikbrixandersen
 /include/dt-bindings/clock/kinetis_scg.h  @henrikbrixandersen
@@ -338,6 +345,7 @@
 /include/toolchain/                       @andrewboie @andyross
 /include/zephyr.h                         @andrewboie @andyross
 /kernel/                                  @andrewboie @andyross
+/lib/fnmatch/                             @carlescufi
 /lib/gui/                                 @vanwinkeljan
 /lib/os/                                  @andrewboie @andyross
 /lib/posix/                               @pfalcon
@@ -350,7 +358,7 @@
 /samples/                                 @nashif
 /samples/basic/minimal/                   @carlescufi
 /samples/basic/servo_motor/*microbit*     @jhe
-/lib/updatehub/                           @chtavares592 @otavio
+/lib/updatehub/                           @nandojve @otavio
 /samples/bluetooth/                       @jhedberg @Vudentz @joerchan
 /samples/boards/intel_s1000_crb/          @sathishkuttan @dcpleung @nashif
 /samples/display/                         @vanwinkeljan
@@ -364,7 +372,7 @@
 /samples/net/mqtt_publisher/              @jukkar @tbursztyka
 /samples/net/sockets/coap_*/              @rveerama1
 /samples/net/sockets/                     @jukkar @tbursztyka @pfalcon
-/samples/net/updatehub/                   @chtavares592 @otavio
+/samples/net/updatehub/                   @nandojve @otavio
 /samples/sensor/                          @MaureenHelm
 /samples/shields/                         @avisconti
 /samples/subsys/logging/                  @nordic-krch @jakub-uC
@@ -386,6 +394,8 @@
 /scripts/net/                             @jukkar @pfl
 /scripts/process_gperf.py                 @andrewboie
 /scripts/gen_relocate_app.py              @wentongwu
+/scripts/requirements*.txt                @mbolivar @galak @nashif
+/scripts/tests/sanitycheck/               @aasthagr
 /scripts/tracing/                         @wentongwu
 /scripts/sanity_chk/                      @nashif
 /scripts/sanitycheck                      @nashif
@@ -394,6 +404,7 @@
 /scripts/west-commands.yml                @mbolivar-nordic
 /scripts/zephyr_module.py                 @tejlmand
 /scripts/valgrind.supp                    @aescolar @daor-oti
+/share/zephyr-package/                    @tejlmand
 /subsys/bluetooth/                        @joerchan @jhedberg @Vudentz
 /subsys/bluetooth/controller/             @carlescufi @cvinayak @thoh-ot
 /subsys/bluetooth/mesh/                   @jhedberg @trond-snekvik @joerchan @Vudentz
@@ -437,7 +448,7 @@
 /subsys/usb/                              @jfischer-phytec-iot @finikorg
 /tests/                                   @nashif
 /tests/application_development/libcxx/    @pabigot
-/tests/arch/arm/                          @ioannisg
+/tests/arch/arm/                          @ioannisg @stephanosio
 /tests/boards/native_posix/               @aescolar @daor-oti
 /tests/boards/intel_s1000_crb/            @dcpleung @sathishkuttan
 /tests/bluetooth/                         @joerchan @jhedberg @Vudentz

@@ -12,6 +12,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <zephyr.h>
 #include <kernel.h>
+#include <debug/stack.h>
 #include <device.h>
 #include <string.h>
 #include <errno.h>
@@ -1112,6 +1113,6 @@ static int winc1500_init(struct device *dev)
 }
 
 NET_DEVICE_OFFLOAD_INIT(winc1500, CONFIG_WIFI_WINC1500_NAME,
-			winc1500_init, &w1500_data, NULL,
+			winc1500_init, device_pm_control_nop, &w1500_data, NULL,
 			CONFIG_WIFI_INIT_PRIORITY, &winc1500_api,
 			CONFIG_WIFI_WINC1500_MAX_PACKET_SIZE);
