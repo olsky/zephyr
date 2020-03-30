@@ -16,6 +16,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <kernel.h>
 #include <arch/cpu.h>
+#include <debug/stack.h>
 
 #include <device.h>
 #include <init.h>
@@ -846,7 +847,8 @@ static struct ieee802154_radio_api cc1200_radio_api = {
 };
 
 NET_DEVICE_INIT(cc1200, CONFIG_IEEE802154_CC1200_DRV_NAME,
-		cc1200_init, &cc1200_context_data, NULL,
+		cc1200_init, device_pm_control_nop,
+		&cc1200_context_data, NULL,
 		CONFIG_IEEE802154_CC1200_INIT_PRIO,
 		&cc1200_radio_api, IEEE802154_L2,
 		NET_L2_GET_CTX_TYPE(IEEE802154_L2), 125);

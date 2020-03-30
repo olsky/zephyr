@@ -417,7 +417,7 @@ static u8_t ticker_enqueue(struct ticker_instance *instance, u8_t id)
 		 */
 		if (ticks_to_expire == 0 && (ticker_new->lazy_current >
 					     ticker_current->lazy_current)) {
-			ticks_to_expire = ticker_current->ticks_to_expire;
+			ticks_to_expire = ticks_to_expire_current;
 			break;
 		}
 
@@ -2083,6 +2083,7 @@ static inline void ticker_job_compare_update(struct ticker_instance *instance,
 	if (instance->ticker_id_head == TICKER_NULL) {
 		if (cntr_stop() == 0) {
 			instance->ticks_slot_previous = 0U;
+			instance->ticks_current = cntr_cnt_get();
 		}
 		return;
 	}

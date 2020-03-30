@@ -17,7 +17,7 @@
 #include <offsets_short.h>
 #include <arch/cpu.h>
 #include <syscall.h>
-#include "macro.h"
+#include "macro.inc"
 
 _ASM_FILE_PROLOGUE
 
@@ -25,22 +25,14 @@ GDATA(_kernel)
 GDATA(_k_neg_eagain)
 
 /**
- * @brief PendSV exception handler, handling context switches
+ * @brief Routine to handle context switches
  *
- * The PendSV exception is the only execution context in the system that can
- * perform context switching. When an execution context finds out it has to
- * switch contexts, it pends the PendSV exception.
- *
- * When PendSV is pended, the decision that a context switch must happen has
- * already been taken. In other words, when z_arm64_pendsv() runs, we *know* we
- * have to swap *something*.
- *
- * For Cortex-A, PendSV exception is not supported by the architecture and this
- * function is directly called either by _isr_wrapper() in case of preemption,
- * or z_arm64_svc() in case of cooperative switching.
+ * This function is directly called either by _isr_wrapper() in case of
+ * preemption, or z_arm64_svc() in case of cooperative switching.
  */
-GTEXT(z_arm64_pendsv)
-SECTION_FUNC(TEXT, z_arm64_pendsv)
+
+GTEXT(z_arm64_context_switch)
+SECTION_FUNC(TEXT, z_arm64_context_switch)
 #ifdef CONFIG_TRACING
 	stp	xzr, x30, [sp, #-16]!
 	bl	sys_trace_thread_switched_in
@@ -85,10 +77,6 @@ SECTION_FUNC(TEXT, z_arm64_pendsv)
 	ldr	x2, [x1, #_kernel_offset_to_ready_q_cache]
 	str	x2, [x1, #_kernel_offset_to_current]
 
-	/* load _kernel into x1 and current k_thread into x2 */
-	ldr	x1, =_kernel
-	ldr	x2, [x1, #_kernel_offset_to_current]
-
 	/* addr of callee-saved regs in thread in x0 */
 	ldr	x0, =_thread_offset_to_callee_saved
 	add	x0, x0, x2
@@ -128,14 +116,14 @@ SECTION_FUNC(TEXT, z_arm64_pendsv)
 	/* We restored x30 from the process stack. There are three possible
 	 * cases:
 	 *
-	 * - We return to z_arm64_svc() when swappin in a thread that was
+	 * - We return to z_arm64_svc() when swapping in a thread that was
 	 *   swapped out by z_arm64_svc() before jumping into
 	 *   z_arm64_exit_exc()
-	 * - We return to _isr_wrapper() when swappin in a thread that was
+	 * - We return to _isr_wrapper() when swapping in a thread that was
 	 *   swapped out by _isr_wrapper() before jumping into
 	 *   z_arm64_exit_exc()
 	 * - We return (jump) into z_thread_entry_wrapper() for new threads
-	 * (see thread.c)
+	 *   (see thread.c)
 	 */
 	ret
 
@@ -173,22 +161,10 @@ SECTION_FUNC(TEXT, z_thread_entry_wrapper)
  *
  * @return N/A
  */
+
 GTEXT(z_arm64_svc)
 SECTION_FUNC(TEXT, z_arm64_svc)
-	/*
-	 * Save the volatile registers and x30 on the process stack. This is
-	 * needed if the thread is switched out.
-	 */
-	stp	x0, x1, [sp, #-16]!
-	stp	x2, x3, [sp, #-16]!
-	stp	x4, x5, [sp, #-16]!
-	stp	x6, x7, [sp, #-16]!
-	stp	x8, x9, [sp, #-16]!
-	stp	x10, x11, [sp, #-16]!
-	stp	x12, x13, [sp, #-16]!
-	stp	x14, x15, [sp, #-16]!
-	stp	x16, x17, [sp, #-16]!
-	stp	x18, x30, [sp, #-16]!
+	z_arm64_enter_exc
 
 	switch_el x3, 3f, 2f, 1f
 3:
@@ -233,61 +209,23 @@ offload:
 	b	inv
 
 context_switch:
-	bl	z_arm64_pendsv
+	/* Check if we need to context switch */
+	ldr	x1, =_kernel
+	ldr	x2, [x1, #_kernel_offset_to_current]
+	ldr	x3, [x1, #_kernel_offset_to_ready_q_cache]
+	cmp	x2, x3
+	beq	exit
+
+	/* Switch thread */
+	bl	z_arm64_context_switch
 
 exit:
-	b	z_arm64_exit_exc
+	z_arm64_exit_exc
 
 inv:
 	mov	x1, sp
 	mov	x0, #0 /* K_ERR_CPU_EXCEPTION */
 	b	z_arm64_fatal_error
-
-
-/**
- * @brief Restore volatile registers and x30
- *
- * This is the common exit point for z_arm64_pendsv() and _isr_wrapper(). We
- * restore the registers saved on the process stack including X30. The return
- * address used by eret (in ELR_ELn) is either restored by z_arm64_pendsv() if
- * a context-switch happened or not touched at all by the ISR if there was no
- * context-switch.
- *
- * @return N/A
- */
-
-GTEXT(z_arm64_exit_exc)
-SECTION_FUNC(TEXT, z_arm64_exit_exc)
-	/*
-	 * In x30 we can have:
-	 *
-	 * - The address of irq_unlock() in swap.c when swapping in a thread
-	 *   that was cooperatively swapped out (used by ret in
-	 *   z_arm64_call_svc())
-	 * - A previos generic value if the thread that we are swapping in was
-	 *   swapped out preemptively by the ISR.
-	 */
-	ldp	x18, x30, [sp], #16
-	ldp	x16, x17, [sp], #16
-	ldp	x14, x15, [sp], #16
-	ldp	x12, x13, [sp], #16
-	ldp	x10, x11, [sp], #16
-	ldp	x8, x9, [sp], #16
-	ldp	x6, x7, [sp], #16
-	ldp	x4, x5, [sp], #16
-	ldp	x2, x3, [sp], #16
-	ldp	x0, x1, [sp], #16
-
-	/*
-	 * In general in the  ELR_ELn register we can find:
-	 *
-	 * - The address of ret in z_arm64_call_svc() in case of arch_swap()
-	 *   (see swap.c)
-	 * - The address of the next instruction at the time of the IRQ when the
-	 *   thread was switched out.
-	 * - The address of z_thread_entry() for new threads (see thread.c).
-	 */
-	eret
 
 GTEXT(z_arm64_call_svc)
 SECTION_FUNC(TEXT, z_arm64_call_svc)
