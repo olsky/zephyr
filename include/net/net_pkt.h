@@ -178,14 +178,14 @@ struct net_pkt {
 					     * AF_UNSPEC.
 					     */
 		u8_t ppp_msg           : 1; /* This is a PPP message */
-
-		u8_t tcp_first_msg     : 1; /* Is this the first time this
-					     * pkt is sent, or is this resend
-					     * of a TCP message.
-					     * Used only if
-					     * defined(CONFIG_NET_TCP)
-					     */
 	};
+
+	u8_t tcp_first_msg     : 1; /* Is this the first time this
+				     * pkt is sent, or is this resend
+				     * of a TCP message.
+				     * Used only if
+				     * defined(CONFIG_NET_TCP)
+				    */
 
 	union {
 		/* IPv6 hop limit or IPv4 ttl for this network packet.
