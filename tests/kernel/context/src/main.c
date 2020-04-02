@@ -70,7 +70,7 @@
 #elif defined(CONFIG_RV32M1_LPTMR_TIMER)
 #define TICK_IRQ DT_OPENISA_RV32M1_LPTMR_SYSTEM_LPTMR_IRQ_0
 #elif defined(CONFIG_XLNX_PSTTC_TIMER)
-#define TICK_IRQ DT_INST_0_CDNS_TTC_IRQ_0
+#define TICK_IRQ DT_INST_0_XLNX_TTCPS_IRQ_0
 #elif defined(CONFIG_CPU_CORTEX_M)
 /*
  * The Cortex-M use the SYSTICK exception for the system timer, which is
@@ -229,20 +229,46 @@ void irq_enable_wrapper(int irq)
 	irq_enable(irq);
 }
 
+#if defined(HAS_POWERSAVE_INSTRUCTION)
 #if defined(CONFIG_TICKLESS_KERNEL)
-static void test_kernel_cpu_idle(void)
+static struct k_timer idle_timer;
+
+static void idle_timer_expiry_function(struct k_timer *timer_id)
 {
-	ztest_test_skip();
+	k_timer_stop(&idle_timer);
 }
-static void test_kernel_cpu_idle_atomic(void)
-{
-	ztest_test_skip();
-}
-#elif defined(HAS_POWERSAVE_INSTRUCTION)
+
 static void _test_kernel_cpu_idle(int atomic)
 {
-	int tms, tms2;;         /* current time in millisecond */
-	int i;                  /* loop variable */
+	int tms, tms2;
+	int i;
+
+	/* Set up a time to trigger events to exit idle mode */
+	k_timer_init(&idle_timer, idle_timer_expiry_function, NULL);
+
+	for (i = 0; i < 5; i++) { /* Repeat the test five times */
+		k_timer_start(&idle_timer, 1, 0);
+		tms = k_uptime_get_32();
+		if (atomic) {
+			unsigned int key = irq_lock();
+
+			k_cpu_atomic_idle(key);
+		} else {
+			k_cpu_idle();
+		}
+		tms += 1;
+		tms2 = k_uptime_get_32();
+		zassert_false(tms2 < tms, "Bad ms value computed,"
+	      "got %d which is less than %d\n",
+	      tms2, tms);
+	}
+}
+
+#else /* CONFIG_TICKLESS_KERNEL */
+static void _test_kernel_cpu_idle(int atomic)
+{
+	int tms, tms2;
+	int i;
 
 	/* Align to a "ms boundary". */
 	tms = k_uptime_get_32();
@@ -253,7 +279,7 @@ static void _test_kernel_cpu_idle(int atomic)
 	}
 
 	tms = k_uptime_get_32();
-	for (i = 0; i < 5; i++) {       /* Repeat the test five times */
+	for (i = 0; i < 5; i++) { /* Repeat the test five times */
 		if (atomic) {
 			unsigned int key = irq_lock();
 
@@ -269,6 +295,7 @@ static void _test_kernel_cpu_idle(int atomic)
 			      tms2, tms);
 	}
 }
+#endif /* CONFIG_TICKLESS_KERNEL */
 
 /**
  *
@@ -300,7 +327,7 @@ static void test_kernel_cpu_idle(void)
 	_test_kernel_cpu_idle(0);
 }
 
-#else
+#else /* HAS_POWERSAVE_INSTRUCTION */
 static void test_kernel_cpu_idle(void)
 {
 	ztest_test_skip();

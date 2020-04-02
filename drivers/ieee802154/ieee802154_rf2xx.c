@@ -18,6 +18,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <kernel.h>
 #include <arch/cpu.h>
+#include <debug/stack.h>
 
 #include <device.h>
 #include <init.h>
@@ -42,11 +43,12 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #if defined(CONFIG_NET_L2_OPENTHREAD)
 #include <net/openthread.h>
 
-#define RF2XX_OT_PSDU_LENGTH            1280
+#define RF2XX_OT_PSDU_LENGTH              1280
 
-#define RF2XX_ACK_FRAME_LEN             3
-#define RF2XX_ACK_FRAME_TYPE           (2 << 0)
-#define RF2XX_ACK_FRAME_PENDING_BIT    (1 << 4)
+#define RF2XX_ACK_FRAME_LEN               3
+#define RF2XX_ACK_FRAME_TYPE              (2 << 0)
+#define RF2XX_ACK_FRAME_PENDING_BIT       (1 << 4)
+#define RF2XX_FRAME_CTRL_ACK_REQUEST_BIT  (1 << 5)
 
 static u8_t rf2xx_ack_psdu[RF2XX_ACK_FRAME_LEN] = { 0 };
 static struct net_buf rf2xx_ack_frame = {
@@ -54,6 +56,7 @@ static struct net_buf rf2xx_ack_frame = {
 	.size  = RF2XX_ACK_FRAME_LEN,
 	.len   = RF2XX_ACK_FRAME_LEN,
 	.__buf = rf2xx_ack_psdu,
+	.frags = NULL,
 };
 static struct net_pkt rf2xx_ack_pkt = {
 	.buffer = &rf2xx_ack_frame,
@@ -444,18 +447,22 @@ static int rf2xx_filter(struct device *dev,
 }
 
 #if defined(CONFIG_NET_L2_OPENTHREAD)
-static void rf2xx_handle_ack(struct rf2xx_context *ctx, u8_t seq_number)
+static void rf2xx_handle_ack(struct rf2xx_context *ctx, struct net_buf *frag)
 {
-	rf2xx_ack_psdu[0] = ACK_FRAME_TYPE;
-	rf2xx_ack_psdu[2] = seq_number;
-
-	if (ctx->trx_trac == RF2XX_TRX_PHY_STATE_TRAC_SUCCESS_DATA_PENDING) {
-		rf2xx_ack_psdu[0] |=  ACK_FRAME_PENDING_BIT;
+	if ((frag->data[0] & RF2XX_FRAME_CTRL_ACK_REQUEST_BIT) == 0) {
+		return;
 	}
 
-	rf2xx_ack_frame.data = rf2xx_ack_psdu;
+	rf2xx_ack_psdu[0] = RF2XX_ACK_FRAME_TYPE;
+	rf2xx_ack_psdu[2] = frag->data[2];
 
-	if (ieee802154_radio_handle_ack(ctx->iface, rf2xx_ack_pkt) != NET_OK) {
+	if (ctx->trx_trac == RF2XX_TRX_PHY_STATE_TRAC_SUCCESS_DATA_PENDING) {
+		rf2xx_ack_psdu[0] |= RF2XX_ACK_FRAME_PENDING_BIT;
+	}
+
+	net_pkt_cursor_init(&rf2xx_ack_pkt);
+
+	if (ieee802154_radio_handle_ack(ctx->iface, &rf2xx_ack_pkt) != NET_OK) {
 		LOG_INF("ACK packet not handled.");
 	}
 }
@@ -507,7 +514,7 @@ static int rf2xx_tx(struct device *dev,
 	 * acknowledgment frame was set.
 	 */
 	default:
-		rf2xx_handle_ack(ctx, frag->data[2]);
+		rf2xx_handle_ack(ctx, frag);
 		break;
 	}
 
@@ -888,6 +895,7 @@ static struct ieee802154_radio_api rf2xx_radio_api = {
 		rf2xx_##n,			   \
 		DT_INST_##n##_ATMEL_RF2XX_LABEL,   \
 		&rf2xx_init,			   \
+		device_pm_control_nop,		   \
 		&rf2xx_ctx_data_##n,		   \
 		&rf2xx_ctx_config_##n,		   \
 		CONFIG_IEEE802154_RF2XX_INIT_PRIO, \

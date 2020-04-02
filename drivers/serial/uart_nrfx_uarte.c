@@ -522,8 +522,10 @@ static int uarte_nrfx_rx_enable(struct device *dev, u8_t *buf, size_t len,
 	const struct uarte_nrfx_config *cfg = get_dev_config(dev);
 	NRF_UARTE_Type *uarte = get_uarte_instance(dev);
 
-	__ASSERT(nrf_uarte_rx_pin_get(uarte) != NRF_UARTE_PSEL_DISCONNECTED,
-			"TX only UARTE instance");
+	if (nrf_uarte_rx_pin_get(uarte) == NRF_UARTE_PSEL_DISCONNECTED) {
+		__ASSERT(false, "TX only UARTE instance");
+		return -ENOTSUP;
+	}
 
 	if (hw_rx_counting_enabled(data)) {
 		nrfx_timer_clear(&cfg->timer);
@@ -712,6 +714,15 @@ static void endrx_isr(struct device *dev)
 	NRF_UARTE_Type *uarte = get_uarte_instance(dev);
 
 	if (!data->async->rx_enabled) {
+		if (data->async->rx_buf == NULL) {
+			/* This condition can occur only after triggering
+			 * FLUSHRX task.
+			 */
+			struct uart_event evt = {
+				.type = UART_RX_DISABLED,
+			};
+			user_callback(dev, &evt);
+		}
 		return;
 	}
 
@@ -783,9 +794,15 @@ static void rxto_isr(struct device *dev)
 		user_callback(dev, &evt);
 		data->async->rx_next_buf = NULL;
 	}
-	evt.type = UART_RX_DISABLED;
 
-	user_callback(dev, &evt);
+	/* Flushing RX fifo requires buffer bigger than 4 bytes to empty fifo */
+	static u8_t flush_buf[5];
+
+	nrf_uarte_rx_buffer_set(get_uarte_instance(dev), flush_buf, 5);
+	/* Final part of handling RXTO event is in ENDRX interrupt handler.
+	 * ENDRX is generated as a result of FLUSHRX task.
+	 */
+	nrf_uarte_task_trigger(get_uarte_instance(dev), NRF_UARTE_TASK_FLUSHRX);
 }
 
 static void txstopped_isr(struct device *dev)
@@ -1292,7 +1309,10 @@ static void uarte_nrfx_set_power_state(struct device *dev, u32_t new_state)
 			return;
 		}
 #endif
-		nrf_uarte_task_trigger(uarte, NRF_UARTE_TASK_STARTRX);
+		if (nrf_uarte_rx_pin_get(uarte) !=
+			NRF_UARTE_PSEL_DISCONNECTED) {
+			nrf_uarte_task_trigger(uarte, NRF_UARTE_TASK_STARTRX);
+		}
 	} else {
 		__ASSERT_NO_MSG(new_state == DEVICE_PM_LOW_POWER_STATE ||
 				new_state == DEVICE_PM_SUSPEND_STATE ||

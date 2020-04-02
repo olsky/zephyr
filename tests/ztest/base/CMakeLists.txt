@@ -7,7 +7,7 @@ if(BOARD STREQUAL unit_testing)
   include($ENV{ZEPHYR_BASE}/subsys/testsuite/unittest.cmake)
   project(base)
 else()
-  include($ENV{ZEPHYR_BASE}/cmake/app/boilerplate.cmake NO_POLICY_SCOPE)
+  find_package(Zephyr HINTS $ENV{ZEPHYR_BASE})
   project(base)
 
   FILE(GLOB app_sources src/*.c)
