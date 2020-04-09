@@ -18,8 +18,6 @@
 #include "fsl_common.h"
 #include "fsl_flash.h"
 
-#define CONFIG_FLASH_SIZE DT_FLASH_SIZE
-
 struct flash_priv {
 	flash_config_t config;
 	/*
@@ -117,7 +115,7 @@ static int flash_mcux_write_protection(struct device *dev, bool enable)
 
 #if defined(CONFIG_FLASH_PAGE_LAYOUT)
 static const struct flash_pages_layout dev_layout = {
-	.pages_count = KB(CONFIG_FLASH_SIZE) /
+	.pages_count = DT_INST_REG_SIZE(0) /
 					DT_INST_PROP(0, erase_block_size),
 	.pages_size = DT_INST_PROP(0, erase_block_size),
 };
@@ -164,6 +162,6 @@ static int flash_mcux_init(struct device *dev)
 	return (rc == kStatus_Success) ? 0 : -EIO;
 }
 
-DEVICE_AND_API_INIT(flash_mcux, DT_FLASH_DEV_NAME,
+DEVICE_AND_API_INIT(flash_mcux, DT_INST_LABEL(0),
 			flash_mcux_init, &flash_data, NULL, POST_KERNEL,
 			CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &flash_mcux_api);

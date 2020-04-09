@@ -8,6 +8,14 @@
 #include <ztest.h>
 #include "interrupt_util.h"
 
+/*
+ * Run the nested interrupt test for the supported platforms only.
+ */
+#if defined(CONFIG_CPU_CORTEX_M) || defined(CONFIG_CPU_ARCV2) || \
+	defined(CONFIG_GIC)
+#define TEST_NESTED_ISR
+#endif
+
 #define DURATION	5
 
 #define ISR0_TOKEN	0xDEADBEEF
@@ -24,8 +32,21 @@
 #if defined(CONFIG_CPU_CORTEX_M)
 /*
  * For Cortex-M NVIC, unused and available IRQs are automatically detected when
- * when the test is run.
+ * the test is run.
+ *
+ * The IRQ priorities start at 1 because the priority 0 is reserved for the
+ * SVCall exception and Zero-Latency IRQs (see `_EXCEPTION_RESERVED_PRIO`).
  */
+#define IRQ0_PRIO	2
+#define IRQ1_PRIO	1
+#elif defined(CONFIG_GIC)
+/*
+ * For the platforms that use the ARM GIC, use the SGI (software generated
+ * interrupt) lines 14 and 15 for testing.
+ */
+#define IRQ0_LINE	14
+#define IRQ1_LINE	15
+
 #define IRQ0_PRIO	2
 #define IRQ1_PRIO	1
 #else
@@ -40,7 +61,7 @@
 #define IRQ1_PRIO	0
 #endif
 
-#ifndef NO_TRIGGER_FROM_SW
+#ifdef TEST_NESTED_ISR
 static u32_t irq_line_0;
 static u32_t irq_line_1;
 
@@ -130,4 +151,4 @@ void test_nested_isr(void)
 {
 	ztest_test_skip();
 }
-#endif /* NO_TRIGGER_FROM_SW */
+#endif /* TEST_NESTED_ISR */

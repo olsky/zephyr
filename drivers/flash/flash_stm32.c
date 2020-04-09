@@ -6,10 +6,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT soc_nv_flash
-
 #include <kernel.h>
 #include <device.h>
+
+#if DT_HAS_NODE(DT_INST(0, st_stm32f0_flash_controller))
+#define DT_DRV_COMPAT st_stm32f0_flash_controller
+#elif DT_HAS_NODE(DT_INST(0, st_stm32f1_flash_controller))
+#define DT_DRV_COMPAT st_stm32f1_flash_controller
+#elif DT_HAS_NODE(DT_INST(0, st_stm32f3_flash_controller))
+#define DT_DRV_COMPAT st_stm32f3_flash_controller
+#elif DT_HAS_NODE(DT_INST(0, st_stm32f4_flash_controller))
+#define DT_DRV_COMPAT st_stm32f4_flash_controller
+#elif DT_HAS_NODE(DT_INST(0, st_stm32f7_flash_controller))
+#define DT_DRV_COMPAT st_stm32f7_flash_controller
+#elif DT_HAS_NODE(DT_INST(0, st_stm32g0_flash_controller))
+#define DT_DRV_COMPAT st_stm32g0_flash_controller
+#elif DT_HAS_NODE(DT_INST(0, st_stm32g4_flash_controller))
+#define DT_DRV_COMPAT st_stm32g4_flash_controller
+#elif DT_HAS_NODE(DT_INST(0, st_stm32l4_flash_controller))
+#define DT_DRV_COMPAT st_stm32l4_flash_controller
+#elif DT_HAS_NODE(DT_INST(0, st_stm32wb_flash_controller))
+#define DT_DRV_COMPAT st_stm32wb_flash_controller
+#endif /* DT_HAS_NODE(DT_INST(0, st_stm32xx_flash_controller)) */
+
 #include <string.h>
 #include <drivers/flash.h>
 #include <init.h>
@@ -22,31 +41,31 @@ LOG_MODULE_REGISTER(flash_stm32, CONFIG_FLASH_LOG_LEVEL);
 
 /* STM32F0: maximum erase time of 40ms for a 2K sector */
 #if defined(CONFIG_SOC_SERIES_STM32F0X)
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(40))
+#define STM32_FLASH_MAX_ERASE_TIME	40
 /* STM32F3: maximum erase time of 40ms for a 2K sector */
 #elif defined(CONFIG_SOC_SERIES_STM32F1X)
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(40))
+#define STM32_FLASH_MAX_ERASE_TIME	40
 /* STM32F3: maximum erase time of 40ms for a 2K sector */
 #elif defined(CONFIG_SOC_SERIES_STM32F3X)
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(40))
+#define STM32_FLASH_MAX_ERASE_TIME	40
 /* STM32F4: maximum erase time of 4s for a 128K sector */
 #elif defined(CONFIG_SOC_SERIES_STM32F4X)
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(4000))
+#define STM32_FLASH_MAX_ERASE_TIME	4000
 /* STM32F7: maximum erase time of 4s for a 256K sector */
 #elif defined(CONFIG_SOC_SERIES_STM32F7X)
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(4000))
+#define STM32_FLASH_MAX_ERASE_TIME	4000
 /* STM32L4: maximum erase time of 24.47ms for a 2K sector */
 #elif defined(CONFIG_SOC_SERIES_STM32L4X)
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(25))
+#define STM32_FLASH_MAX_ERASE_TIME	25
 /* STM32WB: maximum erase time of 24.5ms for a 4K sector */
 #elif defined(CONFIG_SOC_SERIES_STM32WBX)
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(25))
+#define STM32_FLASH_MAX_ERASE_TIME	25
 #elif defined(CONFIG_SOC_SERIES_STM32G0X)
 /* STM32G0: maximum erase time of 40ms for a 2K sector */
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(40))
+#define STM32_FLASH_MAX_ERASE_TIME	40
 /* STM32G4: maximum erase time of 24.47ms for a 2K sector */
 #elif defined(CONFIG_SOC_SERIES_STM32G4X)
-#define STM32_FLASH_MAX_ERASE_TIME	(K_MSEC(25))
+#define STM32_FLASH_MAX_ERASE_TIME	25
 #endif
 
 /* Let's wait for double the max erase time to be sure that the operation is
@@ -301,8 +320,8 @@ static const struct flash_driver_api flash_stm32_api = {
 #ifdef CONFIG_FLASH_PAGE_LAYOUT
 	.page_layout = flash_stm32_page_layout,
 #endif
-#if DT_INST_NODE_HAS_PROP(0, write_block_size)
-	.write_block_size = DT_INST_PROP(0, write_block_size),
+#if DT_PROP(DT_INST(0, soc_nv_flash), write_block_size)
+	.write_block_size = DT_PROP(DT_INST(0, soc_nv_flash), write_block_size),
 #else
 #error Flash write block size not available
 	/* Flash Write block size is extracted from device tree */
@@ -363,6 +382,6 @@ static int stm32_flash_init(struct device *dev)
 	return flash_stm32_write_protection(dev, false);
 }
 
-DEVICE_AND_API_INIT(stm32_flash, DT_FLASH_DEV_NAME,
+DEVICE_AND_API_INIT(stm32_flash, DT_INST_LABEL(0),
 		    stm32_flash_init, &flash_data, NULL, POST_KERNEL,
 		    CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &flash_stm32_api);

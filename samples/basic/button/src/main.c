@@ -87,7 +87,7 @@ void main(void)
 
 		val = gpio_pin_get(dev_button, 	);
 		gpio_pin_set(dev_led, DT_ALIAS_LED0_GPIOS_PIN, val);
-		k_sleep(SLEEP_TIME_MS);
+		k_msleep(SLEEP_TIME_MS);
 #endif
 	}
 }

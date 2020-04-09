@@ -161,17 +161,16 @@ static const struct gpio_driver_api gpio_lmp90xxx_api = {
 	.port_get_raw = gpio_lmp90xxx_port_get_raw,
 };
 
-BUILD_ASSERT_MSG(CONFIG_GPIO_LMP90XXX_INIT_PRIORITY >
-		 CONFIG_ADC_LMP90XXX_INIT_PRIORITY,
-		 "LMP90xxx GPIO driver must be initialized after LMP90xxx ADC "
-		 "driver");
+BUILD_ASSERT(CONFIG_GPIO_LMP90XXX_INIT_PRIORITY >
+	     CONFIG_ADC_LMP90XXX_INIT_PRIORITY,
+	     "LMP90xxx GPIO driver must be initialized after LMP90xxx ADC "
+	     "driver");
 
 #define GPIO_LMP90XXX_DEVICE(id)					\
 	static const struct gpio_lmp90xxx_config gpio_lmp90xxx_##id##_cfg = {\
 		.common = {                                             \
 			.port_pin_mask =                                \
-				 GPIO_PORT_PIN_MASK_FROM_NGPIOS(        \
-					DT_INST_PROP(id, ngpios))	\
+				 GPIO_PORT_PIN_MASK_FROM_DT_INST(id)	\
 		},                                                      \
 		.parent_dev_name = DT_INST_BUS_LABEL(id),		\
 	};								\

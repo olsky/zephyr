@@ -292,6 +292,20 @@ static void test_bus(void)
 		     "inst 0 i2c dev label");
 	zassert_true(!strncmp(i2c_bus, DT_INST_BUS_LABEL(0), strlen(i2c_bus)),
 		     "inst 0 i2c bus label");
+
+#undef DT_DRV_COMPAT
+	/*
+	 * Make sure the underlying DT_COMPAT_ON_BUS used by
+	 * DT_ANY_INST_ON_BUS works without DT_DRV_COMPAT defined.
+	 */
+	zassert_equal(DT_COMPAT_ON_BUS(vnd_spi_device, spi), 1, NULL);
+	zassert_equal(DT_COMPAT_ON_BUS(vnd_spi_device, i2c), 0, NULL);
+
+	zassert_equal(DT_COMPAT_ON_BUS(vnd_i2c_device, i2c), 1, NULL);
+	zassert_equal(DT_COMPAT_ON_BUS(vnd_i2c_device, spi), 0, NULL);
+
+	zassert_equal(DT_COMPAT_ON_BUS(vnd_gpio_expander, i2c), 1, NULL);
+	zassert_equal(DT_COMPAT_ON_BUS(vnd_gpio_expander, spi), 1, NULL);
 }
 
 #undef DT_DRV_COMPAT
@@ -885,6 +899,12 @@ static void test_macro_names(void)
 	zassert_true(!strcmp(TO_STRING(DT_NODELABEL(test_nodelabel_allcaps)),
 			     "DT_N_S_test_S_gpio_deadbeef"),
 		     "nodelabel (all caps)");
+
+#define CHILD_NODE_ID DT_CHILD(DT_PATH(test, i2c_11112222), test_i2c_dev_10)
+#define FULL_PATH_ID DT_PATH(test, i2c_11112222, test_i2c_dev_10)
+
+	zassert_true(!strcmp(TO_STRING(CHILD_NODE_ID), TO_STRING(FULL_PATH_ID)),
+		     "child");
 }
 
 static int a[] = DT_PROP(TEST_ARRAYS, a);
@@ -1002,6 +1022,7 @@ static void test_devices(void)
 	struct device *dev0;
 	struct device *dev1;
 	struct device *dev_abcd;
+	unsigned int val;
 
 	zassert_true(DT_HAS_NODE(INST(0)), "inst 0 device");
 	zassert_true(DT_HAS_NODE(INST(1)), "inst 1 device");
@@ -1024,6 +1045,25 @@ static void test_devices(void)
 	zassert_not_null(dev_abcd, "abcd");
 	zassert_equal(to_info(dev_abcd)->reg_addr, 0xabcd1234, "abcd addr");
 	zassert_equal(to_info(dev_abcd)->reg_len, 0x500, "abcd len");
+
+	/*
+	 * Make sure DT_INST_FOREACH can be called from functions
+	 * using macros with side effects in the current scope.
+	 */
+#undef SET_BIT
+#define SET_BIT(i) do { unsigned int bit = BIT(i); val |= bit; } while (0)
+	val = 0;
+	DT_INST_FOREACH(SET_BIT);
+	zassert_equal(val, 0x3, "foreach vnd_gpio");
+
+	/*
+	 * Make sure DT_INST_FOREACH works with 0 instances, and does
+	 * not expand its argument at all.
+	 */
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT xxxx
+#define BUILD_BUG_ON_EXPANSION (there is a bug in devicetree.h)
+	DT_INST_FOREACH(BUILD_BUG_ON_EXPANSION);
 }
 
 static void test_cs_gpios(void)
@@ -1032,7 +1072,7 @@ static void test_cs_gpios(void)
 	zassert_equal(DT_SPI_NUM_CS_GPIOS(TEST_SPI_NO_CS), 0, "wrong no. of cs");
 
 	zassert_equal(DT_SPI_HAS_CS_GPIOS(TEST_SPI), 1, "missing cs");
-	zassert_equal(DT_SPI_NUM_CS_GPIOS(TEST_SPI), 2, "wrong no. of cs");
+	zassert_equal(DT_SPI_NUM_CS_GPIOS(TEST_SPI), 3, "wrong no. of cs");
 
 	zassert_true(!strcmp(DT_SPI_DEV_CS_GPIOS_LABEL(TEST_SPI_DEV_0),
 			     "TEST_GPIO_1"),

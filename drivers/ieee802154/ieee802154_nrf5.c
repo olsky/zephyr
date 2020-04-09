@@ -25,6 +25,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <soc.h>
 #include <device.h>
 #include <init.h>
+#include <debug/stack.h>
 #include <net/net_if.h>
 #include <net/net_pkt.h>
 
@@ -46,8 +47,6 @@ struct nrf5_802154_config {
 };
 
 static struct nrf5_802154_data nrf5_data;
-
-#define ACK_TIMEOUT K_MSEC(10)
 
 /* Convenience defines for RADIO */
 #define NRF5_802154_DATA(dev) \
@@ -111,6 +110,16 @@ static void nrf5_rx_thread(void *arg1, void *arg2, void *arg3)
 		net_pkt_set_ieee802154_lqi(pkt, rx_frame->lqi);
 		net_pkt_set_ieee802154_rssi(pkt, rx_frame->rssi);
 
+#if defined(CONFIG_NET_PKT_TIMESTAMP)
+		struct net_ptp_time timestamp = {
+			.second = rx_frame->time / USEC_PER_SEC,
+			.nanosecond =
+				(rx_frame->time % USEC_PER_SEC) * NSEC_PER_USEC
+		};
+
+		net_pkt_set_timestamp(pkt, &timestamp);
+#endif
+
 		LOG_DBG("Caught a packet (%u) (LQI: %u)",
 			 pkt_len, rx_frame->lqi);
 
@@ -142,11 +151,10 @@ drop:
 
 static enum ieee802154_hw_caps nrf5_get_capabilities(struct device *dev)
 {
-	return IEEE802154_HW_FCS | IEEE802154_HW_2_4_GHZ |
-	       IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_FILTER |
-	       IEEE802154_HW_ENERGY_SCAN;
+	return IEEE802154_HW_FCS | IEEE802154_HW_FILTER |
+	       IEEE802154_HW_CSMA | IEEE802154_HW_2_4_GHZ |
+	       IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_ENERGY_SCAN;
 }
-
 
 static int nrf5_cca(struct device *dev)
 {
@@ -182,7 +190,6 @@ static int nrf5_set_channel(struct device *dev, u16_t channel)
 	return 0;
 }
 
-#ifdef CONFIG_NET_L2_OPENTHREAD
 static int nrf5_energy_scan_start(struct device *dev,
 				  u16_t duration,
 				  energy_scan_done_cb_t done_cb)
@@ -204,7 +211,6 @@ static int nrf5_energy_scan_start(struct device *dev,
 
 	return err;
 }
-#endif /* CONFIG_NET_L2_OPENTHREAD */
 
 static int nrf5_set_pan_id(struct device *dev, u16_t pan_id)
 {
@@ -322,13 +328,27 @@ free_nrf_ack:
 	return err;
 }
 
+static void nrf5_tx_started(struct device *dev,
+			    struct net_pkt *pkt,
+			    struct net_buf *frag)
+{
+	ARG_UNUSED(pkt);
+
+	if (nrf5_data.event_handler) {
+		nrf5_data.event_handler(dev, IEEE802154_EVENT_TX_STARTED,
+					(void *)frag);
+	}
+}
+
 static int nrf5_tx(struct device *dev,
+		   enum ieee802154_tx_mode mode,
 		   struct net_pkt *pkt,
 		   struct net_buf *frag)
 {
 	struct nrf5_802154_data *nrf5_radio = NRF5_802154_DATA(dev);
 	u8_t payload_len = frag->len;
 	u8_t *payload = frag->data;
+	bool ret = true;
 
 	LOG_DBG("%p (%u)", payload, payload_len);
 
@@ -338,24 +358,35 @@ static int nrf5_tx(struct device *dev,
 	/* Reset semaphore in case ACK was received after timeout */
 	k_sem_reset(&nrf5_radio->tx_wait);
 
-	if (!nrf_802154_transmit_raw(nrf5_radio->tx_psdu, false)) {
+	switch (mode) {
+	case IEEE802154_TX_MODE_DIRECT:
+		ret = nrf_802154_transmit_raw(nrf5_radio->tx_psdu, false);
+		break;
+	case IEEE802154_TX_MODE_CCA:
+		ret = nrf_802154_transmit_raw(nrf5_radio->tx_psdu, true);
+		break;
+	case IEEE802154_TX_MODE_CSMA_CA:
+		nrf_802154_transmit_csma_ca_raw(nrf5_radio->tx_psdu);
+		break;
+	case IEEE802154_TX_MODE_TXTIME:
+	case IEEE802154_TX_MODE_TXTIME_CCA:
+	default:
+		NET_ERR("TX mode %d not supported", mode);
+		return -ENOTSUP;
+	}
+
+	if (!ret) {
 		LOG_ERR("Cannot send frame");
 		return -EIO;
 	}
 
+	nrf5_tx_started(dev, pkt, frag);
+
 	LOG_DBG("Sending frame (ch:%d, txpower:%d)",
 		nrf_802154_channel_get(), nrf_802154_tx_power_get());
 
-	/* Wait for ack to be received */
-	if (k_sem_take(&nrf5_radio->tx_wait, ACK_TIMEOUT)) {
-		LOG_DBG("ACK not received");
-
-		if (!nrf_802154_receive()) {
-			LOG_ERR("Failed to switch back to receive state");
-		}
-
-		return -EIO;
-	}
+	/* Wait for the callback from the radio driver. */
+	k_sem_take(&nrf5_radio->tx_wait, K_FOREVER);
 
 	LOG_DBG("Result: %d", nrf5_data.tx_result);
 
@@ -498,6 +529,9 @@ int nrf5_configure(struct device *dev, enum ieee802154_config_type type,
 		nrf_802154_promiscuous_set(config->promiscuous);
 		break;
 
+	case IEEE802154_CONFIG_EVENT_HANDLER:
+		nrf5_data.event_handler = config->event_handler;
+
 	default:
 		return -EINVAL;
 	}
@@ -507,7 +541,8 @@ int nrf5_configure(struct device *dev, enum ieee802154_config_type type,
 
 /* nRF5 radio driver callbacks */
 
-void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
+void nrf_802154_received_timestamp_raw(uint8_t *data, int8_t power, uint8_t lqi,
+				       uint32_t time)
 {
 	for (u32_t i = 0; i < ARRAY_SIZE(nrf5_data.rx_frames); i++) {
 		if (nrf5_data.rx_frames[i].psdu != NULL) {
@@ -515,6 +550,7 @@ void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 		}
 
 		nrf5_data.rx_frames[i].psdu = data;
+		nrf5_data.rx_frames[i].time = time;
 		nrf5_data.rx_frames[i].rssi = power;
 		nrf5_data.rx_frames[i].lqi = lqi;
 
@@ -609,9 +645,7 @@ static struct ieee802154_radio_api nrf5_radio_api = {
 	.start = nrf5_start,
 	.stop = nrf5_stop,
 	.tx = nrf5_tx,
-#ifdef CONFIG_NET_L2_OPENTHREAD
 	.ed_scan = nrf5_energy_scan_start,
-#endif /* CONFIG_NET_L2_OPENTHREAD */
 	.configure = nrf5_configure,
 };
 

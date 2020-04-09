@@ -142,8 +142,8 @@ static const struct flash_driver_api flash_mcux_api = {
 #if defined(CONFIG_FLASH_PAGE_LAYOUT)
 	.page_layout = flash_mcux_pages_layout,
 #endif
-#ifdef DT_FLASH_WRITE_BLOCK_SIZE
-	.write_block_size = DT_FLASH_WRITE_BLOCK_SIZE,
+#if DT_INST_NODE_HAS_PROP(0, write_block_size)
+	.write_block_size = DT_INST_PROP(0, write_block_size),
 #else
 	.write_block_size = FSL_FEATURE_FLASH_PFLASH_BLOCK_WRITE_UNIT_SIZE,
 #endif
@@ -171,6 +171,6 @@ static int flash_mcux_init(struct device *dev)
 	return (rc == kStatus_Success) ? 0 : -EIO;
 }
 
-DEVICE_AND_API_INIT(flash_mcux, DT_FLASH_DEV_NAME,
+DEVICE_AND_API_INIT(flash_mcux, DT_INST_LABEL(0),
 			flash_mcux_init, &flash_data, NULL, POST_KERNEL,
 			CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &flash_mcux_api);

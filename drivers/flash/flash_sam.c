@@ -32,7 +32,7 @@ LOG_MODULE_REGISTER(flash_sam0);
  * We only use block mode erases. The datasheet gives a maximum erase time
  * of 200ms for a 8KiB block.
  */
-#define SAM_FLASH_TIMEOUT (K_MSEC(220))
+#define SAM_FLASH_TIMEOUT_MS 220
 
 struct flash_sam_dev_cfg {
 	Efc *regs;
@@ -87,7 +87,7 @@ static int flash_sam_wait_ready(struct device *dev)
 {
 	Efc *const efc = DEV_CFG(dev)->regs;
 
-	u64_t timeout_time = k_uptime_get() + SAM_FLASH_TIMEOUT;
+	u64_t timeout_time = k_uptime_get() + SAM_FLASH_TIMEOUT_MS;
 	u32_t fsr;
 
 	do {
@@ -347,12 +347,12 @@ static const struct flash_driver_api flash_sam_api = {
 };
 
 static const struct flash_sam_dev_cfg flash_sam_cfg = {
-	.regs = (Efc *)DT_FLASH_DEV_BASE_ADDRESS,
+	.regs = (Efc *)DT_REG_ADDR(DT_INST(0, atmel_sam_flash_controller)),
 };
 
 static struct flash_sam_dev_data flash_sam_data;
 
-DEVICE_AND_API_INIT(flash_sam, DT_FLASH_DEV_NAME,
+DEVICE_AND_API_INIT(flash_sam, DT_INST_LABEL(0),
 		    flash_sam_init, &flash_sam_data, &flash_sam_cfg,
 		    POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &flash_sam_api);

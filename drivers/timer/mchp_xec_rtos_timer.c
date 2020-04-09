@@ -11,9 +11,9 @@
 #include <sys_clock.h>
 #include <spinlock.h>
 
-BUILD_ASSERT_MSG(!IS_ENABLED(CONFIG_SMP), "XEC RTOS timer doesn't support SMP");
-BUILD_ASSERT_MSG(CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 32768,
-		 "XEC RTOS timer HW frequency is fixed at 32768");
+BUILD_ASSERT(!IS_ENABLED(CONFIG_SMP), "XEC RTOS timer doesn't support SMP");
+BUILD_ASSERT(CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 32768,
+	     "XEC RTOS timer HW frequency is fixed at 32768");
 
 #define DEBUG_RTOS_TIMER 0
 
@@ -135,7 +135,7 @@ void z_clock_set_timeout(s32_t n, bool idle)
 	u32_t full_cycles;	/* full_ticks represented as cycles */
 	u32_t partial_cycles;	/* number of cycles to first tick boundary */
 
-	if (idle && (n == K_FOREVER)) {
+	if (idle && (n == K_TICKS_FOREVER)) {
 		/*
 		 * We are not in a locked section. Are writes to two
 		 * global objects safe from pre-emption?
@@ -147,7 +147,7 @@ void z_clock_set_timeout(s32_t n, bool idle)
 
 	if (n < 1) {
 		full_ticks = 0;
-	} else if ((n == K_FOREVER) || (n > MAX_TICKS)) {
+	} else if ((n == K_TICKS_FOREVER) || (n > MAX_TICKS)) {
 		full_ticks = MAX_TICKS - 1;
 	} else {
 		full_ticks = n - 1;
@@ -217,6 +217,11 @@ static void xec_rtos_timer_isr(void *arg)
 {
 	ARG_UNUSED(arg);
 
+#ifdef CONFIG_EXECUTION_BENCHMARKING
+	extern void read_timer_start_of_tick_handler(void);
+	read_timer_start_of_tick_handler();
+#endif
+
 	u32_t cycles;
 	s32_t ticks;
 
@@ -243,6 +248,11 @@ static void xec_rtos_timer_isr(void *arg)
 
 	k_spin_unlock(&lock, key);
 	z_clock_announce(ticks);
+
+#ifdef CONFIG_EXECUTION_BENCHMARKING
+	extern void read_timer_end_of_tick_handler(void);
+	read_timer_end_of_tick_handler();
+#endif
 }
 
 #else
