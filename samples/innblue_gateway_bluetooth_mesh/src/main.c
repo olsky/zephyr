@@ -12,9 +12,6 @@
 #include "uart_mqtt_bridge.h"
 #include "board_lights.h"
 
-#define UART_1 1
-#define UART_2 2
-
 /** "private" functions **/
 int libs_init(void);
 int modem_init(void);
@@ -26,6 +23,8 @@ const char *build_str = "" __DATE__ " " __TIME__;
 
 void main(void)
 {
+	k_sleep(1000);
+
 	// init section
 	printk("innblue > mqtt broker > mqtt-nrf91-nrf52-mesh\n");
 	printk("innblue > %s [%d] > built: %s\n", __func__, __LINE__, build_str);
@@ -43,15 +42,7 @@ void main(void)
 	mqtt_publisher.initialize();
 
 	printk("Setting up serial link to Bluetooth mesh...\n");
-//#if CONFIG_UART_SERIAL_MESH == UART_1
-	uart_mqtt_bridge.start("UART_1", mqtt_publisher.publish);
-//#elif CONFIG_UART_SERIAL_MESH == UART_2
-//	uart_mqtt_bridge.start("UART_2", mqtt_publisher.publish);
-//#endif
-
-	// __ASSERT(download_init(), "DFU Donwload cannot be initialezed!");
-	// ~init
-	//download_start(CONFIG_FW_HOST, CONFIG_FW_FILE);
+	int ret = uart_mqtt_bridge.start("UART_1", mqtt_publisher.publish);
 
 	// set callback
 	mqtt_publisher.set_subscribe_callback(uart_mqtt_bridge.write_to_uart);
@@ -65,13 +56,6 @@ void main(void)
 		if (!mqtt_publisher.process_input())
 			k_sleep(500);
 	}
-
-	// to be continued...
-	// 1.download crc check
-	// 2.write to flash
-	// 3.flash_to_uart
-	// 4.cleanup flash, write status (crc, list in nvr )
-	// 5.prevent reflashing same image based on crc
 }
 
 /**@brief Fatal error handler */

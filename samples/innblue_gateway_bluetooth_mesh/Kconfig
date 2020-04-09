@@ -9,7 +9,6 @@ config MQTT_PORT
 	default 1883
 	depends on NET_CONFIG_SETTINGS
 
-
 config MQTT_PUB_TOPIC
 	string "The Broker topic name for publishing events from mesh"
 	default "sensors"
