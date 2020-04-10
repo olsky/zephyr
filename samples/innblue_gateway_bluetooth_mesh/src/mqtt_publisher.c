@@ -19,6 +19,7 @@ LOG_MODULE_REGISTER(mqtt_publisher, LOG_LEVEL_DBG);
 #include "config.h"
 #include "mqtt_publisher.h"
 
+
 #define MAX_IMEI_LEN (30)
 #define CLIENT_ID_LEN (MAX_IMEI_LEN + 6)
 static u8_t client_id_buf[CLIENT_ID_LEN+1];
@@ -395,22 +396,24 @@ static bool mqtt_sub(void)
 				.utf8 = CONFIG_MQTT_SUB_TOPIC,
 				.size = strlen(CONFIG_MQTT_SUB_TOPIC)
 			},
-			.qos = MQTT_QOS_1_AT_LEAST_ONCE
+			.qos = MQTT_QOS_0_AT_MOST_ONCE
 		}
 	};
 
 	const struct mqtt_subscription_list subscription_list = {
 		.list = subscribe_topics,
 		.list_count = ARRAY_SIZE(subscribe_topics),
-		.message_id = 1U
+		.message_id = sys_rand32_get()
 	};
 
-	const int rc = mqtt_subscribe(&client_ctx, &subscription_list);
+	/* Ping.. */
+	int rc = mqtt_ping(&client_ctx);
+	PRINT_RESULT("mqtt_ping", rc);
+
+	rc = mqtt_subscribe(&client_ctx, &subscription_list);
 	PRINT_RESULT("try_to_subscribe", rc);
 	return 0 == rc;
 }
-
-
 
 /* In this routine we block until the connected variable is 1 */
 static int try_to_connect(struct mqtt_client *client)
@@ -424,7 +427,7 @@ static int try_to_connect(struct mqtt_client *client)
 		rc = mqtt_connect(client);
 		if (rc != 0) {
 			PRINT_RESULT("mqtt_connect", rc);
-			k_sleep(APP_SLEEP_MSECS);
+			k_sleep(K_MSEC(APP_SLEEP_MSECS));
 			continue;
 		}
 

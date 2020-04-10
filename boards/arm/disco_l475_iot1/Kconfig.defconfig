@@ -15,7 +15,7 @@ endchoice
 
 config UART_1
 	default y
-	depends on UART_CONSOLE
+	depends on SERIAL
 
 config UART_4
 	default y

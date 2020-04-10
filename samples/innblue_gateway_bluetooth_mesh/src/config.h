@@ -50,7 +50,7 @@
 #endif /* CONFIG_MQTT_LIB_WEBSOCKET */
 #endif
 
-#define APP_SLEEP_MSECS		1500
+#define APP_SLEEP_MSECS		500
 #define APP_TX_RX_TIMEOUT       300
 #define APP_NET_INIT_TIMEOUT    10000
 

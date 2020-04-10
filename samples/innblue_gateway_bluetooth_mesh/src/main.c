@@ -12,6 +12,8 @@
 #include "uart_mqtt_bridge.h"
 #include "board_lights.h"
 
+#include "config.h"
+
 /** "private" functions **/
 int libs_init(void);
 int modem_init(void);
@@ -42,7 +44,7 @@ void main(void)
 	mqtt_publisher.initialize();
 
 	printk("Setting up serial link to Bluetooth mesh...\n");
-	int ret = uart_mqtt_bridge.start("UART_1", mqtt_publisher.publish);
+	uart_mqtt_bridge.start("UART_1", mqtt_publisher.publish);
 
 	// set callback
 	mqtt_publisher.set_subscribe_callback(uart_mqtt_bridge.write_to_uart);
@@ -54,7 +56,7 @@ void main(void)
 	// in the future
 	while (1) {
 		if (!mqtt_publisher.process_input())
-			k_sleep(500);
+			k_sleep(K_MSEC(APP_SLEEP_MSECS));
 	}
 }
 
