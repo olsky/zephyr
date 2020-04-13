@@ -609,7 +609,7 @@ static int lmp90xxx_adc_read_channel(struct device *dev, u8_t channel,
 						&adc_done);
 			if (adc_done == 0xFFU) {
 				LOG_DBG("sleeping for 1 ms");
-				k_sleep(1);
+				k_sleep(K_MSEC(1));
 			} else {
 				break;
 			}
@@ -1050,10 +1050,10 @@ static const struct adc_driver_api lmp90xxx_adc_api = {
 };
 
 #define ASSERT_LMP90XXX_CURRENT_VALID(v) \
-	BUILD_ASSERT_MSG(v == 0 || v == 100 || v == 200 || v == 300 || \
-			 v == 400 || v == 500 || v == 600 || v == 700 || \
-			 v == 800 || v == 900 || v == 1000, \
-			 "unsupported RTD current (" #v ")")
+	BUILD_ASSERT(v == 0 || v == 100 || v == 200 || v == 300 ||	\
+		     v == 400 || v == 500 || v == 600 || v == 700 ||	\
+		     v == 800 || v == 900 || v == 1000,			\
+		     "unsupported RTD current (" #v ")")
 
 #define LMP90XXX_UAMPS_TO_RTD_CUR_SEL(x) (x / 100)
 

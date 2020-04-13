@@ -824,9 +824,10 @@ int net_context_create_ipv4_new(struct net_context *context,
 				const struct in_addr *src,
 				const struct in_addr *dst)
 {
-	NET_ASSERT(((struct sockaddr_in_ptr *)&context->local)->sin_addr);
-
 	if (!src) {
+		NET_ASSERT(((
+			struct sockaddr_in_ptr *)&context->local)->sin_addr);
+
 		src = ((struct sockaddr_in_ptr *)&context->local)->sin_addr;
 	}
 
@@ -853,9 +854,10 @@ int net_context_create_ipv6_new(struct net_context *context,
 				const struct in6_addr *src,
 				const struct in6_addr *dst)
 {
-	NET_ASSERT(((struct sockaddr_in6_ptr *)&context->local)->sin6_addr);
-
 	if (!src) {
+		NET_ASSERT(((
+			struct sockaddr_in6_ptr *)&context->local)->sin6_addr);
+
 		src = ((struct sockaddr_in6_ptr *)&context->local)->sin6_addr;
 	}
 
@@ -876,7 +878,7 @@ int net_context_connect(struct net_context *context,
 			const struct sockaddr *addr,
 			socklen_t addrlen,
 			net_context_connect_cb_t cb,
-			s32_t timeout,
+			k_timeout_t timeout,
 			void *user_data)
 {
 	struct sockaddr *laddr = NULL;
@@ -905,7 +907,8 @@ int net_context_connect(struct net_context *context,
 
 	if (IS_ENABLED(CONFIG_NET_SOCKETS_PACKET) &&
 	    addr->sa_family == AF_PACKET) {
-		return -EOPNOTSUPP;
+		ret = -EOPNOTSUPP;
+		goto unlock;
 	}
 
 	if (net_context_get_state(context) == NET_CONTEXT_LISTENING) {
@@ -1050,7 +1053,7 @@ unlock:
 
 int net_context_accept(struct net_context *context,
 		       net_tcp_accept_cb_t cb,
-		       s32_t timeout,
+		       k_timeout_t timeout,
 		       void *user_data)
 {
 	int ret = 0;
@@ -1282,7 +1285,7 @@ static void context_finalize_packet(struct net_context *context,
 }
 
 static struct net_pkt *context_alloc_pkt(struct net_context *context,
-					 size_t len, s32_t timeout)
+					 size_t len, k_timeout_t timeout)
 {
 	struct net_pkt *pkt;
 
@@ -1341,7 +1344,7 @@ static int context_sendto(struct net_context *context,
 			  const struct sockaddr *dst_addr,
 			  socklen_t addrlen,
 			  net_context_send_cb_t cb,
-			  s32_t timeout,
+			  k_timeout_t timeout,
 			  void *user_data,
 			  bool sendto)
 {
@@ -1627,7 +1630,7 @@ int net_context_send(struct net_context *context,
 		     const void *buf,
 		     size_t len,
 		     net_context_send_cb_t cb,
-		     s32_t timeout,
+		     k_timeout_t timeout,
 		     void *user_data)
 {
 	socklen_t addrlen;
@@ -1670,7 +1673,7 @@ int net_context_sendmsg(struct net_context *context,
 			const struct msghdr *msghdr,
 			int flags,
 			net_context_send_cb_t cb,
-			s32_t timeout,
+			k_timeout_t timeout,
 			void *user_data)
 {
 	int ret;
@@ -1691,7 +1694,7 @@ int net_context_sendto(struct net_context *context,
 		       const struct sockaddr *dst_addr,
 		       socklen_t addrlen,
 		       net_context_send_cb_t cb,
-		       s32_t timeout,
+		       k_timeout_t timeout,
 		       void *user_data)
 {
 	int ret;
@@ -1752,7 +1755,7 @@ unlock:
 #if defined(CONFIG_NET_UDP)
 static int recv_udp(struct net_context *context,
 		    net_context_recv_cb_t cb,
-		    s32_t timeout,
+		    k_timeout_t timeout,
 		    void *user_data)
 {
 	struct sockaddr local_addr = {
@@ -1851,7 +1854,7 @@ static enum net_verdict net_context_raw_packet_received(
 
 static int recv_raw(struct net_context *context,
 		    net_context_recv_cb_t cb,
-		    s32_t timeout,
+		    k_timeout_t timeout,
 		    struct sockaddr *local_addr,
 		    void *user_data)
 {
@@ -1883,7 +1886,7 @@ static int recv_raw(struct net_context *context,
 
 int net_context_recv(struct net_context *context,
 		     net_context_recv_cb_t cb,
-		     s32_t timeout,
+		     k_timeout_t timeout,
 		     void *user_data)
 {
 	int ret;
@@ -1951,7 +1954,7 @@ int net_context_recv(struct net_context *context,
 	}
 
 #if defined(CONFIG_NET_CONTEXT_SYNC_RECV)
-	if (timeout) {
+	if (!K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
 		int ret;
 
 		/* Make sure we have the lock, then the

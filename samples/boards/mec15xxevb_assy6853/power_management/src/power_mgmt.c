@@ -106,7 +106,7 @@ static int taskB_init(void)
 void taskA_thread(void *p1, void *p2, void *p3)
 {
 	while (true) {
-		k_sleep(THREAD_A_SLEEP_TIME);
+		k_msleep(THREAD_A_SLEEP_TIME);
 		printk("A");
 	}
 }
@@ -114,7 +114,7 @@ void taskA_thread(void *p1, void *p2, void *p3)
 static void taskB_thread(void *p1, void *p2, void *p3)
 {
 	while (true) {
-		k_sleep(THREAD_B_SLEEP_TIME);
+		k_msleep(THREAD_B_SLEEP_TIME);
 		printk("B");
 	}
 }
@@ -132,6 +132,15 @@ static void create_tasks(void)
 	k_thread_start(&threadA_id);
 	k_thread_start(&threadB_id);
 
+}
+
+static void destroy_tasks(void)
+{
+	k_thread_abort(&threadA_id);
+	k_thread_abort(&threadB_id);
+
+	k_thread_join(&threadA_id, K_FOREVER);
+	k_thread_join(&threadB_id, K_FOREVER);
 }
 
 static void suspend_all_tasks(void)
@@ -160,7 +169,7 @@ int test_pwr_mgmt_multithread(bool use_logging, u8_t cycles)
 	pm_exit_marker();
 
 	while (cycles-- > 0) {
-		k_sleep(CONFIG_SYS_PM_MIN_RESIDENCY_SLEEP_1 + 500);
+		k_msleep(CONFIG_SYS_PM_MIN_RESIDENCY_SLEEP_1 + 500);
 
 		if (use_logging) {
 			LOG_INF("Wake from Light Sleep\n");
@@ -176,9 +185,9 @@ int test_pwr_mgmt_multithread(bool use_logging, u8_t cycles)
 		/* GPIO toggle to measure latency */
 		pm_entry_marker();
 
-		k_sleep(CONFIG_SYS_PM_MIN_RESIDENCY_DEEP_SLEEP_1 + 500);
+		k_msleep(CONFIG_SYS_PM_MIN_RESIDENCY_DEEP_SLEEP_1 + 500);
 
-		k_busy_wait(3000);
+		k_busy_wait(100);
 
 		if (use_logging) {
 			LOG_INF("Wake from Deep Sleep\n");
@@ -190,6 +199,8 @@ int test_pwr_mgmt_multithread(bool use_logging, u8_t cycles)
 		LOG_INF("Resume");
 		resume_all_tasks();
 	}
+
+	destroy_tasks();
 
 	pm_reset_counters();
 
@@ -203,7 +214,7 @@ int test_pwr_mgmt_singlethread(bool use_logging, u8_t cycles)
 	while (cycles-- > 0) {
 
 		/* Trigger Light Sleep 1 state. 48MHz PLL stays on */
-		k_sleep(CONFIG_SYS_PM_MIN_RESIDENCY_SLEEP_1 + 500);
+		k_msleep(CONFIG_SYS_PM_MIN_RESIDENCY_SLEEP_1 + 500);
 
 		if (use_logging) {
 			LOG_INF("Wake from Light Sleep\n");
@@ -220,9 +231,9 @@ int test_pwr_mgmt_singlethread(bool use_logging, u8_t cycles)
 		/* GPIO toggle to measure latency */
 		pm_entry_marker();
 
-		k_sleep(CONFIG_SYS_PM_MIN_RESIDENCY_DEEP_SLEEP_1 + 1000);
+		k_msleep(CONFIG_SYS_PM_MIN_RESIDENCY_DEEP_SLEEP_1 + 1000);
 
-		k_busy_wait(3000);
+		k_busy_wait(100);
 
 		if (use_logging) {
 			LOG_INF("Wake from Deep Sleep\n");

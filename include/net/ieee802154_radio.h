@@ -26,8 +26,6 @@ extern "C" {
  * @{
  */
 
-typedef void (*energy_scan_done_cb_t)(struct device *dev, s16_t max_ed);
-
 enum ieee802154_hw_caps {
 	IEEE802154_HW_FCS	  = BIT(0), /* Frame Check-Sum supported */
 	IEEE802154_HW_PROMISC	  = BIT(1), /* Promiscuous mode supported */
@@ -36,7 +34,8 @@ enum ieee802154_hw_caps {
 	IEEE802154_HW_2_4_GHZ	  = BIT(4), /* 2.4Ghz radio supported */
 	IEEE802154_HW_TX_RX_ACK	  = BIT(5), /* Handles ACK request on TX */
 	IEEE802154_HW_SUB_GHZ	  = BIT(6), /* Sub-GHz radio supported */
-	IEEE802154_HW_ENERGY_SCAN = BIT(7)  /* Energy scan supported */
+	IEEE802154_HW_ENERGY_SCAN = BIT(7), /* Energy scan supported */
+	IEEE802154_HW_TXTIME	  = BIT(8), /* TX at specified time supported */
 };
 
 enum ieee802154_filter_type {
@@ -47,6 +46,16 @@ enum ieee802154_filter_type {
 	IEEE802154_FILTER_TYPE_SRC_SHORT_ADDR,
 };
 
+enum ieee802154_event {
+	IEEE802154_EVENT_TX_STARTED /* Data transmission started */
+};
+
+typedef void (*energy_scan_done_cb_t)(struct device *dev, s16_t max_ed);
+
+typedef void (*ieee802154_event_cb_t)(struct device *dev,
+				      enum ieee802154_event evt,
+				      void *event_params);
+
 struct ieee802154_filter {
 /** @cond ignore */
 	union {
@@ -55,6 +64,24 @@ struct ieee802154_filter {
 		u16_t pan_id;
 	};
 /* @endcond */
+};
+
+/** IEEE802.15.4 Transmission mode. */
+enum ieee802154_tx_mode {
+	/** Transmit packet immediately, no CCA. */
+	IEEE802154_TX_MODE_DIRECT,
+
+	/** Perform CCA before packet transmission. */
+	IEEE802154_TX_MODE_CCA,
+
+	/** Perform full CSMA CA procedure before packet transmission. */
+	IEEE802154_TX_MODE_CSMA_CA,
+
+	/** Transmit packet in the future, at specified time, no CCA. */
+	IEEE802154_TX_MODE_TXTIME,
+
+	/** Transmit packet in the future, perform CCA before transmission. */
+	IEEE802154_TX_MODE_TXTIME_CCA,
 };
 
 /** IEEE802.15.4 driver configuration types. */
@@ -79,6 +106,11 @@ enum ieee802154_config_type {
 
 	/** Enable/disable promiscuous mode. */
 	IEEE802154_CONFIG_PROMISCUOUS,
+
+	/** Specifies new radio event handler. Specifying NULL as a handler
+	 *  will disable radio events notification.
+	 */
+	IEEE802154_CONFIG_EVENT_HANDLER
 };
 
 /** IEEE802.15.4 driver configuration data. */
@@ -102,6 +134,9 @@ struct ieee802154_config {
 
 		/** ``IEEE802154_CONFIG_PROMISCUOUS`` */
 		bool promiscuous;
+
+		/** ``IEEE802154_CONFIG_EVENT_HANDLER`` */
+		ieee802154_event_cb_t event_handler;
 	};
 };
 
@@ -137,9 +172,8 @@ struct ieee802154_radio_api {
 	int (*set_txpower)(struct device *dev, s16_t dbm);
 
 	/** Transmit a packet fragment */
-	int (*tx)(struct device *dev,
-		  struct net_pkt *pkt,
-		  struct net_buf *frag);
+	int (*tx)(struct device *dev, enum ieee802154_tx_mode mode,
+		  struct net_pkt *pkt, struct net_buf *frag);
 
 	/** Start the device */
 	int (*start)(struct device *dev);
@@ -157,15 +191,13 @@ struct ieee802154_radio_api {
 	u16_t (*get_subg_channel_count)(struct device *dev);
 #endif /* CONFIG_NET_L2_IEEE802154_SUB_GHZ */
 
-#ifdef CONFIG_NET_L2_OPENTHREAD
 	/** Run an energy detection scan.
-	 * Note: channel must be set prior to request this function.
-	 * duration parameter is in ms.
+	 *  Note: channel must be set prior to request this function.
+	 *  duration parameter is in ms.
 	 */
 	int (*ed_scan)(struct device *dev,
 		       u16_t duration,
 		       energy_scan_done_cb_t done_cb);
-#endif /* CONFIG_NET_L2_OPENTHREAD */
 };
 
 /* Make sure that the network interface API is properly setup inside

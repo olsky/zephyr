@@ -33,28 +33,10 @@
 #endif
 
 #if IS_ENABLED(CONFIG_NET_TEST_PROTOCOL)
-#define tcp_pkt_alloc(_len) tp_pkt_alloc(_len, tp_basename(__FILE__), __LINE__)
+#define tp_pkt_alloc(_pkt) tp_pkt_alloc(_pkt, tp_basename(__FILE__), __LINE__)
 #define tcp_pkt_clone(_pkt) tp_pkt_clone(_pkt, tp_basename(__FILE__), __LINE__)
 #define tcp_pkt_unref(_pkt) tp_pkt_unref(_pkt, tp_basename(__FILE__), __LINE__)
 #else
-static struct net_pkt *tcp_pkt_alloc(size_t len)
-{
-	struct net_pkt *pkt = net_pkt_alloc(K_NO_WAIT);
-
-	pkt->family = AF_INET;
-
-	NET_ASSERT(pkt);
-
-	if (len) {
-		struct net_buf *buf = net_pkt_get_frag(pkt, K_NO_WAIT);
-
-		net_buf_add(buf, len);
-		net_pkt_frag_insert(pkt, buf);
-		NET_ASSERT(buf);
-	}
-
-	return pkt;
-}
 #define tcp_pkt_clone(_pkt) net_pkt_clone(_pkt, K_NO_WAIT)
 #define tcp_pkt_unref(_pkt) net_pkt_unref(_pkt)
 #endif
@@ -80,7 +62,7 @@ static struct net_pkt *tcp_pkt_alloc(size_t len)
 	(_conn)->state = _s;						\
 })
 
-#define TCPOPT_PAD	0
+#define TCPOPT_END	0
 #define TCPOPT_NOP	1
 #define TCPOPT_MAXSEG	2
 #define TCPOPT_WINDOW	3

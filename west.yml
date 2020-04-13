@@ -26,10 +26,10 @@ manifest:
   # Please add items below based on alphabetical order
   projects:
     - name: cmsis
-      revision: a2b82e79bd8ac156fb283d5f52fa0a2373962cf9
+      revision: 026671fc99ef7e3ca94a575f89210fce5a94747d
       path: modules/hal/cmsis
     - name: hal_atmel
-      revision: 917bfefa5188a473ff49087f1fa207cbb42bf592
+      revision: c6825eab4a3eabe901d25259080f1f3661c8a7b6
       path: modules/hal/atmel
     - name: hal_altera
       revision: 23c1c1dd7a0c1cc9a399509d1819375847c95b97
@@ -53,16 +53,16 @@ manifest:
       revision: a12d92816a53a521d79cefcf5c38b9dc8a4fed6e
       path: modules/hal/cypress
     - name: hal_nordic
-      revision: f6d5eca68e07551d6a36359b67600f9e98736839
+      revision: 8a693c5ffc8b50fc148190fe10cca5538759b8f0
       path: modules/hal/nordic
     - name: hal_openisa
       revision: 3b54187649cc9b37161d49918f1ad28ff7c7f830
       path: modules/hal/openisa
     - name: hal_microchip
-      revision: 03c8819ac3105cc2aee295a8d330de0e665b705f
+      revision: 688cb7deebd5910357e35843595149b3feba2184
       path: modules/hal/microchip
     - name: hal_silabs
-      revision: 0fb710f258d7ed84a75cfea40319eaf531b61d1e
+      revision: 78da967feeac0d51219ef733cc3ccf643336589f
       path: modules/hal/silabs
     - name: hal_st
       revision: fa481784b3c49780f18d50bafe00390ccb62b2ec
@@ -74,7 +74,7 @@ manifest:
       revision: b25d4b83b16e52f501f8cd360f4efb8c31ffb578
       path: modules/hal/ti
     - name: libmetal
-      revision: 11a4d140f58b3c220f90fc3591c3d6e05840cca6
+      revision: 60f40977eccb7e067a83933cec859e266bff4849
       path: modules/hal/libmetal
     - name: lvgl
       revision: 74fc2e753a997bd71cefa34dd9c56dcb954b42e2
@@ -83,7 +83,7 @@ manifest:
       revision: cf7020eb4c7ef93319f2d6d2403a21e12a879bf6
       path: modules/crypto/mbedtls
     - name: mcuboot
-      revision: 1084100cf4d3c17c4e212f167e3fc0199aa898de
+      revision: 41c5d50ec7cd295dd39a7a12ee26abefe8b3ab0f
       path: bootloader/mcuboot
     - name: mcumgr
       revision: dcf32c7f340a10e6e6482feb311cb4fa71953fd3
@@ -92,10 +92,10 @@ manifest:
       revision: 1080094bc246357c6c35e80e8b2d5d0ce7e0d963
       path: tools/net-tools
     - name: hal_nxp
-      revision: 2f896f74a5fc7220546cc23b50351506cd72ea96
+      revision: 87850e41cd48e4472adbae03c9623ea349255d48
       path: modules/hal/nxp
     - name: open-amp
-      revision: 697716812a38fc05c1689cb9c6768bd412bf7153
+      revision: 5720c73ef3bd885824b2d2184f606443e03f73c4
       path: modules/lib/open-amp
     - name: loramac-node
       revision: 29e516ec585b1a909af2b5f1c60d83e7d4d563e3
@@ -114,7 +114,7 @@ manifest:
       revision: 3e9a49d2672ec01435ffbf0d788db6d95ef28de0
     - name: littlefs
       path: modules/fs/littlefs
-      revision: fe9572dd5a9fcf93a249daa4233012692bd2881d
+      revision: 0aefdda69d236cb01f932117c1f32e9da09c0ec3
     - name: mipi-sys-t
       path: modules/debug/mipi-sys-t
       revision: baf51863f19f009b92e762115ba5572a5b996b92

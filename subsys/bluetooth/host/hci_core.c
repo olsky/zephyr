@@ -344,6 +344,7 @@ int bt_hci_cmd_send_sync(u16_t opcode, struct net_buf *buf,
 			 struct net_buf **rsp)
 {
 	struct k_sem sync_sem;
+	u8_t status;
 	int err;
 
 	if (!buf) {
@@ -364,31 +365,30 @@ int bt_hci_cmd_send_sync(u16_t opcode, struct net_buf *buf,
 	net_buf_put(&bt_dev.cmd_tx_queue, buf);
 
 	err = k_sem_take(&sync_sem, HCI_CMD_TIMEOUT);
-	__ASSERT(err == 0, "k_sem_take failed with err %d", err);
+	BT_ASSERT_MSG(err == 0, "k_sem_take failed with err %d", err);
 
-	BT_DBG("opcode 0x%04x status 0x%02x", opcode, cmd(buf)->status);
-
-	if (cmd(buf)->status) {
-		switch (cmd(buf)->status) {
-		case BT_HCI_ERR_CONN_LIMIT_EXCEEDED:
-			err = -ECONNREFUSED;
-			break;
-		default:
-			err = -EIO;
-			break;
-		}
-
+	status = cmd(buf)->status;
+	if (status) {
+		BT_WARN("opcode 0x%04x status 0x%02x", opcode, status);
 		net_buf_unref(buf);
-	} else {
-		err = 0;
-		if (rsp) {
-			*rsp = buf;
-		} else {
-			net_buf_unref(buf);
+
+		switch (status) {
+		case BT_HCI_ERR_CONN_LIMIT_EXCEEDED:
+			return -ECONNREFUSED;
+		default:
+			return -EIO;
 		}
 	}
 
-	return err;
+	BT_DBG("rsp %p opcode 0x%04x len %u", buf, opcode, buf->len);
+
+	if (rsp) {
+		*rsp = buf;
+	} else {
+		net_buf_unref(buf);
+	}
+
+	return 0;
 }
 
 #if defined(CONFIG_BT_OBSERVER) || defined(CONFIG_BT_CONN)
@@ -605,6 +605,13 @@ static int set_adv_random_address(struct bt_le_ext_adv *adv,
 	}
 
 	BT_DBG("%s", bt_addr_str(addr));
+
+	if (!atomic_test_bit(adv->flags, BT_ADV_PARAMS_SET)) {
+		bt_addr_copy(&adv->random_addr.a, addr);
+		adv->random_addr.type = BT_ADDR_LE_RANDOM;
+		atomic_set_bit(adv->flags, BT_ADV_RANDOM_ADDR_PENDING);
+		return 0;
+	}
 
 	buf = bt_hci_cmd_create(BT_HCI_OP_LE_SET_ADV_SET_RANDOM_ADDR,
 				sizeof(*cp));
@@ -1130,6 +1137,19 @@ static int set_le_scan_enable(u8_t enable)
 }
 #endif /* CONFIG_BT_OBSERVER */
 
+static inline bool rpa_is_new(void)
+{
+#if defined(CONFIG_BT_PRIVACY)
+	/* RPA is considered new if there is less than half a second since the
+	 * timeout was started.
+	 */
+	return k_delayed_work_remaining_get(&bt_dev.rpa_update) >
+	       (RPA_TIMEOUT - K_MSEC(500));
+#else
+	return false;
+#endif
+}
+
 #if defined(CONFIG_BT_CONN)
 static void hci_acl(struct net_buf *buf)
 {
@@ -1248,7 +1268,7 @@ static inline bool rpa_timeout_valid_check(void)
 #if defined(CONFIG_BT_PRIVACY)
 	/* Check if create conn timeout will happen before RPA timeout. */
 	return k_delayed_work_remaining_get(&bt_dev.rpa_update) >
-	       K_SECONDS(CONFIG_BT_CREATE_CONN_TIMEOUT);
+	       (10 * bt_dev.create_param.timeout);
 #else
 	return true;
 #endif
@@ -1388,17 +1408,12 @@ int bt_le_create_conn_ext(const struct bt_conn *conn)
 	}
 
 	if (bt_dev.create_param.options & BT_LE_CONN_OPT_CODED) {
-		u16_t interval = bt_dev.create_param.interval_coded ?
-			bt_dev.create_param.interval_coded :
-			bt_dev.create_param.interval;
-		u16_t window = bt_dev.create_param.window_coded ?
-			bt_dev.create_param.window_coded :
-			bt_dev.create_param.window;
-
 		cp->phys |= BT_HCI_LE_EXT_SCAN_PHY_CODED;
 		phy = net_buf_add(buf, sizeof(*phy));
-		phy->scan_interval = sys_cpu_to_le16(interval);
-		phy->scan_window = sys_cpu_to_le16(window);
+		phy->scan_interval = sys_cpu_to_le16(
+			bt_dev.create_param.interval_coded);
+		phy->scan_window = sys_cpu_to_le16(
+			bt_dev.create_param.window_coded);
 		set_phy_conn_param(conn, phy);
 	}
 
@@ -1700,14 +1715,14 @@ static void slave_update_conn_param(struct bt_conn *conn)
 #if defined(CONFIG_BT_SMP)
 static void pending_id_update(struct bt_keys *keys, void *data)
 {
-	if (keys->flags & BT_KEYS_ID_PENDING_ADD) {
-		keys->flags &= ~BT_KEYS_ID_PENDING_ADD;
+	if (keys->state & BT_KEYS_ID_PENDING_ADD) {
+		keys->state &= ~BT_KEYS_ID_PENDING_ADD;
 		bt_id_add(keys);
 		return;
 	}
 
-	if (keys->flags & BT_KEYS_ID_PENDING_DEL) {
-		keys->flags &= ~BT_KEYS_ID_PENDING_DEL;
+	if (keys->state & BT_KEYS_ID_PENDING_DEL) {
+		keys->state &= ~BT_KEYS_ID_PENDING_DEL;
 		bt_id_del(keys);
 		return;
 	}
@@ -1716,7 +1731,7 @@ static void pending_id_update(struct bt_keys *keys, void *data)
 static void pending_id_keys_update_set(struct bt_keys *keys, u8_t flag)
 {
 	atomic_set_bit(bt_dev.flags, BT_DEV_ID_PENDING);
-	keys->flags |= flag;
+	keys->state |= flag;
 }
 
 static void pending_id_keys_update(void)
@@ -2179,7 +2194,7 @@ bool bt_le_conn_params_valid(const struct bt_le_conn_param *param)
 
 	if (param->timeout < 10 || param->timeout > 3200 ||
 	    ((param->timeout * 4U) <=
-	     ((1 + param->latency) * param->interval_max))) {
+	     ((1U + param->latency) * param->interval_max))) {
 		return false;
 	}
 
@@ -3630,6 +3645,7 @@ void bt_id_add(struct bt_keys *keys)
 	/* Nothing to be done if host-side resolving is used */
 	if (!bt_dev.le.rl_size || bt_dev.le.rl_entries > bt_dev.le.rl_size) {
 		bt_dev.le.rl_entries++;
+		keys->state |= BT_KEYS_ID_ADDED;
 		return;
 	}
 
@@ -3691,6 +3707,7 @@ void bt_id_add(struct bt_keys *keys)
 		}
 
 		bt_dev.le.rl_entries++;
+		keys->state |= BT_KEYS_ID_ADDED;
 
 		goto done;
 	}
@@ -3702,6 +3719,7 @@ void bt_id_add(struct bt_keys *keys)
 	}
 
 	bt_dev.le.rl_entries++;
+	keys->state |= BT_KEYS_ID_ADDED;
 
 	/*
 	 * According to Core Spec. 5.0 Vol 1, Part A 5.4.5 Privacy Feature
@@ -3737,7 +3755,7 @@ done:
 
 static void keys_add_id(struct bt_keys *keys, void *data)
 {
-	if (keys != (struct bt_keys *)data) {
+	if (keys->state & BT_KEYS_ID_ADDED) {
 		hci_id_add(keys->id, &keys->addr, keys->irk.val);
 	}
 }
@@ -3772,6 +3790,7 @@ void bt_id_del(struct bt_keys *keys)
 	if (!bt_dev.le.rl_size ||
 	    bt_dev.le.rl_entries > bt_dev.le.rl_size + 1) {
 		bt_dev.le.rl_entries--;
+		keys->state &= ~BT_KEYS_ID_ADDED;
 		return;
 	}
 
@@ -3824,11 +3843,12 @@ void bt_id_del(struct bt_keys *keys)
 	/* We checked size + 1 earlier, so here we know we can fit again */
 	if (bt_dev.le.rl_entries > bt_dev.le.rl_size) {
 		bt_dev.le.rl_entries--;
+		keys->state &= ~BT_KEYS_ID_ADDED;
 		if (IS_ENABLED(CONFIG_BT_CENTRAL) &&
 		    IS_ENABLED(CONFIG_BT_PRIVACY)) {
-			bt_keys_foreach(BT_KEYS_ALL, keys_add_id, keys);
+			bt_keys_foreach(BT_KEYS_ALL, keys_add_id, NULL);
 		} else {
-			bt_keys_foreach(BT_KEYS_IRK, keys_add_id, keys);
+			bt_keys_foreach(BT_KEYS_IRK, keys_add_id, NULL);
 		}
 		goto done;
 	}
@@ -3840,6 +3860,7 @@ void bt_id_del(struct bt_keys *keys)
 	}
 
 	bt_dev.le.rl_entries--;
+	keys->state &= ~BT_KEYS_ID_ADDED;
 
 done:
 	/* Only re-enable if there are entries to do resolving with */
@@ -4297,12 +4318,12 @@ static int start_le_scan_ext(struct bt_hci_ext_scan_phy *phy_1m,
 	if (duration > 0) {
 		atomic_set_bit(bt_dev.flags, BT_DEV_SCAN_LIMITED);
 
-#if defined(CONFIG_BT_PRIVACY)
-		if (k_delayed_work_remaining_get(&bt_dev.rpa_update) <
-		    (RPA_TIMEOUT - K_MSEC(500))) {
+		/* Allow bt_le_oob_get_local to be called directly before
+		 * starting a scan limited by timeout.
+		 */
+		if (IS_ENABLED(CONFIG_BT_PRIVACY) && !rpa_is_new()) {
 			atomic_clear_bit(bt_dev.flags, BT_DEV_RPA_VALID);
 		}
-#endif /* defined(CONFIG_BT_PRIVACY) */
 	}
 
 	err = le_scan_set_random_addr(active_scan, &own_addr_type);
@@ -6946,7 +6967,7 @@ static bool valid_adv_param(const struct bt_le_adv_param *param, bool dir_adv)
 
 static inline bool ad_has_name(const struct bt_data *ad, size_t ad_len)
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < ad_len; i++) {
 		if (ad[i].type == BT_DATA_NAME_COMPLETE ||
@@ -7369,7 +7390,7 @@ static int le_ext_adv_param_set(struct bt_le_ext_adv *adv,
 		}
 	}
 
-	if (param->options & BT_LE_ADV_OPT_SCANNABLE || has_scan_data) {
+	if ((param->options & BT_LE_ADV_OPT_SCANNABLE) || has_scan_data) {
 		cp->props |= BT_HCI_LE_ADV_PROP_SCAN;
 	}
 
@@ -7387,6 +7408,15 @@ static int le_ext_adv_param_set(struct bt_le_ext_adv *adv,
 #endif /* defined(CONFIG_BT_EXT_ADV) */
 
 	net_buf_unref(rsp);
+
+	atomic_set_bit(adv->flags, BT_ADV_PARAMS_SET);
+
+	if (atomic_test_and_clear_bit(adv->flags, BT_ADV_RANDOM_ADDR_PENDING)) {
+		err = set_adv_random_address(adv, &adv->random_addr.a);
+		if (err) {
+			return err;
+		}
+	}
 
 	/* Todo: Figure out how keep advertising works with multiple adv sets */
 	atomic_set_bit_to(bt_dev.flags, BT_DEV_KEEP_ADVERTISING, false);
@@ -7409,9 +7439,13 @@ int bt_le_adv_start_ext(struct bt_le_ext_adv *adv,
 			const struct bt_data *sd, size_t sd_len,
 			const bt_addr_le_t *peer)
 {
+	struct bt_le_ext_adv_start_param start_param = {
+		.timeout = 0,
+		.num_events = 0,
+	};
 	bool dir_adv = (peer != NULL);
 	struct bt_conn *conn = NULL;
-	int err = 0;
+	int err;
 
 	if (!atomic_test_bit(bt_dev.flags, BT_DEV_READY)) {
 		return -EAGAIN;
@@ -7427,8 +7461,11 @@ int bt_le_adv_start_ext(struct bt_le_ext_adv *adv,
 
 	adv->id = param->id;
 
-	le_ext_adv_param_set(adv, param, peer,
-			     sd || (param->options & BT_LE_ADV_OPT_USE_NAME));
+	err = le_ext_adv_param_set(adv, param, peer, sd ||
+				   (param->options & BT_LE_ADV_OPT_USE_NAME));
+	if (err) {
+		return err;
+	}
 
 	if (!dir_adv) {
 		err = le_adv_update(adv, ad, ad_len, sd, sd_len,
@@ -7447,9 +7484,12 @@ int bt_le_adv_start_ext(struct bt_le_ext_adv *adv,
 
 			bt_conn_set_state(conn, BT_CONN_CONNECT_ADV);
 		}
+	} else if (!(param->options & BT_LE_ADV_OPT_DIR_MODE_LOW_DUTY)) {
+		start_param.timeout = BT_HCI_LE_EXT_ADV_DURATION_HI_DC_MAX;
+		atomic_set_bit(adv->flags, BT_ADV_LIMITED);
 	}
 
-	err = set_le_adv_enable_ext(adv, true, NULL);
+	err = set_le_adv_enable_ext(adv, true, &start_param);
 	if (err) {
 		BT_ERR("Failed to start advertiser");
 		if (IS_ENABLED(CONFIG_BT_PERIPHERAL) && conn) {
@@ -8520,14 +8560,13 @@ int bt_le_ext_adv_oob_get_local(struct bt_le_ext_adv *adv,
 
 	if (IS_ENABLED(CONFIG_BT_PRIVACY) &&
 	    !atomic_test_bit(bt_dev.flags, BT_DEV_ADVERTISING_IDENTITY)) {
-		/* Don't refresh RPA addresses if there is less than
-		 * half a second since it was refreshed last time.
-		 * This allows back to back calls to this function to not
-		 * invalidate the previously set RPAs.
+		/* Don't refresh RPA addresses if the RPA is new.
+		 * This allows back to back calls to this function or
+		 * bt_le_oob_get_local to not invalidate the previously set
+		 * RPAs.
 		 */
 		if (!atomic_test_bit(adv->flags, BT_ADV_LIMITED) &&
-		    k_delayed_work_remaining_get(&bt_dev.rpa_update) <
-		    (RPA_TIMEOUT - K_MSEC(500))) {
+		    !rpa_is_new()) {
 			if (IS_ENABLED(CONFIG_BT_CENTRAL) &&
 			    atomic_test_bit(bt_dev.flags, BT_DEV_INITIATING)) {
 				struct bt_conn *conn;

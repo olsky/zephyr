@@ -9,7 +9,7 @@
 
 #include <ztest.h>
 
-#define MS_TO_US(ms)  (K_MSEC(ms) * USEC_PER_MSEC)
+#define MS_TO_US(ms)  (ms * USEC_PER_MSEC)
 
 #if defined(CONFIG_CPU_CORTEX_M)
 #include <arch/arm/aarch32/cortex_m/cmsis.h>
@@ -58,6 +58,24 @@ static inline void trigger_irq(int irq)
 #else
 	NVIC->STIR = irq;
 #endif
+}
+
+#elif defined(CONFIG_GIC)
+#include <drivers/interrupt_controller/gic.h>
+
+static inline void trigger_irq(int irq)
+{
+	printk("Triggering irq : %d\n", irq);
+
+	/* Ensure that the specified IRQ number is a valid SGI interrupt ID */
+	zassert_true(irq <= 15, "%u is not a valid SGI interrupt ID", irq);
+
+	/*
+	 * Generate a software generated interrupt and forward it to the
+	 * requesting CPU.
+	 */
+	sys_write32(GICD_SGIR_TGTFILT_REQONLY | GICD_SGIR_SGIINTID(irq),
+		    GICD_SGIR);
 }
 
 #elif defined(CONFIG_CPU_ARCV2)

@@ -21,8 +21,31 @@ No security vulnerabilities received.
 API Changes
 ***********
 
+* HWINFO
+
+  * The identifier data structure for hwinfo drivers is clarified.  Drivers are
+    responsible for ensuring that the identifier data structure is a sequence
+    of bytes. The returned ID value is not supposed to be interpreted based on
+    vendor-specific assumptions of byte order and should express the identifier
+    as a raw byte sequence.
+    The changes have an impact on users that use the hwinfo API to identify
+    their devices.
+    The sam0 driver byte swaps each 32 bit word of the 128 bit identifier to
+    big endian.
+    The nordic driver byte swaps the entire 64 bit word to big endian.
+
 Deprecated in this release
 ==========================
+
+* Kernel
+
+  * k_uptime_delta_32(), use k_uptime_delta()
+  * Timeout values
+
+    * All timeout values are now encapsulated k_timeout_t opaque structure when
+      passing them to the kernel. If you want to revert to the previous s32_t
+      type for the timeout parameter pleae enable the
+      CONFIG_LEGACY_TIMEOUT_API Kconfig option
 
 * Bluetooth
 

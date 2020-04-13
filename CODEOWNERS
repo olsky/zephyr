@@ -31,6 +31,7 @@
 /soc/arm/atmel_sam/sam3x/                 @ioannisg
 /soc/arm/atmel_sam/sam4e/                 @nandojve
 /soc/arm/atmel_sam/sam4s/                 @fallrisk
+/soc/arm/atmel_sam/same70/                @nandojve
 /soc/arm/atmel_sam/samv71/                @nandojve
 /soc/arm/bcm*/                            @sbranden
 /soc/arm/nxp*/                            @MaureenHelm
@@ -89,6 +90,7 @@
 /boards/arm/qemu_cortex_m*/               @ioannisg
 /boards/arm/sam4e_xpro/                   @nandojve
 /boards/arm/sam4s_xplained/               @fallrisk
+/boards/arm/sam_e70_xplained/             @nandojve
 /boards/arm/sam_v71_xult/                 @nandojve
 /boards/arm/v2m_beetle/                   @fvincenzo
 /boards/arm/olimexino_stm32/              @ydamigos
@@ -123,7 +125,7 @@
 /doc/guides/dts/                          @galak @mbolivar-nordic
 /doc/reference/bluetooth/                 @joerchan @jhedberg @Vudentz
 /doc/reference/devicetree/                @galak @mbolivar-nordic
-/doc/reference/kernel/other/resource_mgmt.rst @pabigot
+/doc/reference/resource_management/       @pabigot
 /doc/reference/networking/can*            @alexanderwachter
 /drivers/debug/                           @nashif
 /drivers/*/*cc13xx_cc26xx*                @bwitherspoon
@@ -138,6 +140,7 @@
 /drivers/clock_control/*nrf*              @nordic-krch
 /drivers/counter/                         @nordic-krch
 /drivers/counter/counter_cmos.c           @andrewboie
+/drivers/crypto/*nrf_ecb*                 @maciekfabia @anangl
 /drivers/display/                         @vanwinkeljan
 /drivers/display/display_framebuf.c       @andrewboie
 /drivers/dma/*dw*                         @tbursztyka
@@ -197,6 +200,7 @@
 /drivers/sensor/st*/                      @avisconti
 /drivers/serial/uart_altera_jtag_hal.c    @wentongwu
 /drivers/serial/*ns16550*                 @andrewboie
+/drivers/serial/*nrfx*                    @Mierunski @anangl
 /drivers/serial/Kconfig.litex             @mateusz-holenko @kgugala @pgielda
 /drivers/serial/uart_liteuart.c           @mateusz-holenko @kgugala @pgielda
 /drivers/serial/Kconfig.rtt               @carlescufi @pkral78
@@ -235,6 +239,7 @@
 /dts/arm/atmel/sam4e*                     @nandojve
 /dts/arm/atmel/samr21.dtsi                @benpicco
 /dts/arm/atmel/sam*5*.dtsi                @benpicco
+/dts/arm/atmel/same70*                    @nandojve
 /dts/arm/atmel/samv71*                    @nandojve
 /dts/arm/broadcom/                        @sbranden
 /dts/arm/qemu-virt/                       @carlocaione
@@ -347,6 +352,7 @@
 /kernel/                                  @andrewboie @andyross
 /lib/fnmatch/                             @carlescufi
 /lib/gui/                                 @vanwinkeljan
+/lib/open-amp/                            @arnopo
 /lib/os/                                  @andrewboie @andyross
 /lib/posix/                               @pfalcon
 /lib/cmsis_rtos_v2/                       @nashif
@@ -357,7 +363,7 @@
 /kernel/idle.c                            @andrewboie @andyross @nashif
 /samples/                                 @nashif
 /samples/basic/minimal/                   @carlescufi
-/samples/basic/servo_motor/*microbit*     @jhe
+/samples/basic/servo_motor/boards/*microbit* @jhe
 /lib/updatehub/                           @nandojve @otavio
 /samples/bluetooth/                       @jhedberg @Vudentz @joerchan
 /samples/boards/intel_s1000_crb/          @sathishkuttan @dcpleung @nashif
@@ -387,6 +393,7 @@
 /scripts/gen_app_partitions.py            @andrewboie
 /scripts/dts/                             @ulfalizer @galak
 /scripts/release/                         @nashif
+/scripts/ci/                              @nashif
 /arch/x86/gen_gdt.py                      @andrewboie
 /arch/x86/gen_idt.py                      @andrewboie
 /scripts/gen_kobject_list.py              @andrewboie
@@ -405,6 +412,7 @@
 /scripts/zephyr_module.py                 @tejlmand
 /scripts/valgrind.supp                    @aescolar @daor-oti
 /share/zephyr-package/                    @tejlmand
+/share/zephyrunittest-package/            @tejlmand
 /subsys/bluetooth/                        @joerchan @jhedberg @Vudentz
 /subsys/bluetooth/controller/             @carlescufi @cvinayak @thoh-ot
 /subsys/bluetooth/mesh/                   @jhedberg @trond-snekvik @joerchan @Vudentz

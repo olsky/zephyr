@@ -193,6 +193,14 @@ endif()
 assert(BOARD "BOARD not set")
 message(STATUS "Board: ${BOARD}")
 
+if(DEFINED ENV{ZEPHYR_BOARD_ALIASES})
+  include($ENV{ZEPHYR_BOARD_ALIASES})
+  if(${BOARD}_BOARD_ALIAS)
+    set(BOARD_ALIAS ${BOARD} CACHE STRING "Board alias, provided by user")
+    set(BOARD ${${BOARD}_BOARD_ALIAS})
+    message(STATUS "Aliased BOARD=${BOARD_ALIAS} changed to ${BOARD}")
+  endif()
+endif()
 include(${ZEPHYR_BASE}/boards/deprecated.cmake)
 if(${BOARD}_DEPRECATED)
   set(BOARD_DEPRECATED ${BOARD} CACHE STRING "Deprecated board name, provided by user")
@@ -284,6 +292,16 @@ endif()
 foreach(root ${BOARD_ROOT})
   # NB: find_path will return immediately if the output variable is
   # already set
+  if (BOARD_ALIAS)
+    find_path(BOARD_HIDDEN_DIR
+      NAMES ${BOARD_ALIAS}_defconfig
+      PATHS ${root}/boards/*/*
+      NO_DEFAULT_PATH
+      )
+    if(BOARD_HIDDEN_DIR)
+      message("Board alias ${BOARD_ALIAS} is hiding the real board of same name")
+    endif()
+  endif()
   find_path(BOARD_DIR
     NAMES ${BOARD}_defconfig
     PATHS ${root}/boards/*/*
