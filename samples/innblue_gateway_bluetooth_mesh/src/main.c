@@ -181,7 +181,7 @@ void main(void)
 	printk("innblue > mqtt broker > mqtt-nrf91-nrf52-mesh\n");
 	printk("innblue > %s [%d] > built: %s\n", __func__, __LINE__, build_str);
 
-#if 0
+#if 1
 	/* Blink LEDs. */
 	board_lights.blink_mqtt(2);
 	board_lights.blink_uart(2);
@@ -203,9 +203,6 @@ void main(void)
 	}
 #endif
 
-	while (1) {
-		k_sleep(K_MSEC(1000));
-	}
 }
 
 /**@brief Fatal error handler */
