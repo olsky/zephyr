@@ -3,9 +3,8 @@
 #include <drivers/gpio.h>
 #include <zephyr.h>
 
-#define LED_PORT	   "GPIO_0" //DT_ALIAS_LED0_GPIOS_CONTROLLER
-
 #ifdef CONFIG_BOARD_NRF9160_PCA10090NS
+	#define LED_PORT	       "GPIO_0" //DT_ALIAS_LED0_GPIOS_CONTROLLER
 	#define LED_MODEM_CTRL     LED_PORT
 	#define LED_RECONNECT_CTRL LED_PORT
 	#define LED_MQTT_CTRL      LED_PORT
@@ -19,6 +18,7 @@
 	// uart activity
 	#define LED_UART DT_ALIAS_LED3_GPIOS_PIN
 #elif defined(CONFIG_BOARD_NRF9160_PCA20035NS)
+    #define LED_PORT	       "GPIO_0" //DT_ALIAS_LED0_GPIOS_CONTROLLER
 	#define LED_MODEM_CTRL     LED_PORT
 	#define LED_RECONNECT_CTRL LED_PORT
 	#define LED_MQTT_CTRL      LED_PORT
