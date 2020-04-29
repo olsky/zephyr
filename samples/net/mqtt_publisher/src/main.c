@@ -550,7 +550,6 @@ void int_modem_status_handler(struct device *dev, struct gpio_callback *cb,
 	gpio_pin_set(device_get_binding(DT_ALIAS_LED1_GPIOS_CONTROLLER), LED1, cnt % 2);
 	cnt++;
 }
-// ok .. yours ;)
 
 static struct gpio_callback cb_gpio_modem_status;
 

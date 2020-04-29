@@ -124,51 +124,6 @@ void init_modem_int(void)
 	gpio_add_callback(dev_modem_status, &cb_gpio_modem_status);
 }
 
-
-
-
-void init_ui(void)
-{
-	u32_t cnt = 0;
-	gpio_pin_configure(device_get_binding(DT_ALIAS_LED0_GPIOS_CONTROLLER), LED0, GPIO_OUTPUT);
-	gpio_pin_set(device_get_binding(DT_ALIAS_LED0_GPIOS_CONTROLLER), LED0, 1);
-	gpio_pin_configure(device_get_binding(DT_ALIAS_LED1_GPIOS_CONTROLLER), LED1, GPIO_OUTPUT);
-	gpio_pin_set(device_get_binding(DT_ALIAS_LED1_GPIOS_CONTROLLER), LED1, 1);
-	gpio_pin_configure(device_get_binding(DT_ALIAS_LED2_GPIOS_CONTROLLER), LED2, GPIO_OUTPUT);
-	gpio_pin_set(device_get_binding(DT_ALIAS_LED2_GPIOS_CONTROLLER), LED2, 1);
-
-	gpio_pin_configure(device_get_binding(DT_ALIAS_LED3_GPIOS_CONTROLLER), LED3, GPIO_OUTPUT);
-	gpio_pin_configure(device_get_binding(DT_ALIAS_LED4_GPIOS_CONTROLLER), LED4, GPIO_OUTPUT);
-	gpio_pin_configure(device_get_binding(DT_ALIAS_LED5_GPIOS_CONTROLLER), LED5, GPIO_OUTPUT);
-
-
-	gpio_pin_set(device_get_binding(DT_ALIAS_LED3_GPIOS_CONTROLLER), LED3, 1);
-	gpio_pin_set(device_get_binding(DT_ALIAS_LED4_GPIOS_CONTROLLER), LED4, 1);
-	gpio_pin_set(device_get_binding(DT_ALIAS_LED5_GPIOS_CONTROLLER), LED5, 1);
-
-	
-	// oops.. always on if "odd"
-	for (int i = 0; i < 4; ++i)
-	{
-
-		gpio_pin_set(device_get_binding(DT_ALIAS_LED0_GPIOS_CONTROLLER), LED0, cnt % 2);
-		k_sleep(SLEEP_TIME);
-		gpio_pin_set(device_get_binding(DT_ALIAS_LED1_GPIOS_CONTROLLER), LED1, cnt % 2);
-		k_sleep(SLEEP_TIME);
-		gpio_pin_set(device_get_binding(DT_ALIAS_LED2_GPIOS_CONTROLLER), LED2, cnt % 2);
-		k_sleep(SLEEP_TIME);
-
-		gpio_pin_set(device_get_binding(DT_ALIAS_LED3_GPIOS_CONTROLLER), LED3, cnt % 2);
-		k_sleep(SLEEP_TIME);
-		gpio_pin_set(device_get_binding(DT_ALIAS_LED4_GPIOS_CONTROLLER), LED4, cnt % 2);
-		k_sleep(SLEEP_TIME);
-		gpio_pin_set(device_get_binding(DT_ALIAS_LED5_GPIOS_CONTROLLER), LED5, cnt % 2);
-		k_sleep(SLEEP_TIME);
-
-		cnt++;
-	}
-}
-
 void init_modem(void)
 {
 
@@ -199,18 +154,6 @@ void init_modem(void)
 	printk("init_modem > sim8xx > gnss ON\n");
 	gpio_pin_set(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 1, 1);
 	//k_sleep(500);
-
-	// try?
-
-
-	//printk("pwr_ctrl_init > sim8xx > GNSS  ON\n");
-	// PH1 is GPS ON output
-	// config_pin_out_set(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 1, 1);
-
-	// there is an INPUT from sim800 module --> PH0 NET_STATUS 
-	//printk("pwr_ctrl_init > sim8xx > config status input\n");
-	//gpio_pin_configure(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 0, GPIO_INPUT);
-
 }
 
 /* System main thread. */
@@ -219,7 +162,6 @@ void main(void)
 	const char *build_str = "" __DATE__ " " __TIME__;
 
 	/* Modem Init. */
-	init_ui();
 	init_modem_int();
 	init_modem();
 
