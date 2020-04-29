@@ -42,6 +42,9 @@ config SYSTEM_STATE_THREAD_STACK_SIZE
 	help
 	  Stack size for the System State thread.
 
+config BLE_UART_NAME
+	string "UART device name the BLE Mesh is connected to"
+
 endmenu
 
 menu "Zephyr Kernel"

@@ -44,7 +44,7 @@ void main(void)
 	mqtt_publisher.initialize();
 
 	printk("Setting up serial link to Bluetooth mesh...\n");
-	uart_mqtt_bridge.start("UART_1", mqtt_publisher.publish);
+	uart_mqtt_bridge.start(CONFIG_BLE_UART_NAME, mqtt_publisher.publish);
 
 	// set callback
 	mqtt_publisher.set_subscribe_callback(uart_mqtt_bridge.write_to_uart);
