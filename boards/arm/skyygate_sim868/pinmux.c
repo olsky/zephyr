@@ -16,15 +16,18 @@
 /* Pin assignments for Innblue skyygate sim868 board. */
 static const struct pin_config pinconf[] = {
 
-#ifdef CONFIG_UART_1
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(usart1))
 	/* STM32_PUPDR_PULL_UP Pull ups required for interurpt mode config.*/
 	{STM32_PIN_PB6, STM32L4X_PINMUX_FUNC_PB6_USART1_TX | STM32_PUPDR_PULL_UP},
 	{STM32_PIN_PB7, STM32L4X_PINMUX_FUNC_PB7_USART1_RX | STM32_PUPDR_PULL_UP},
 #endif	/* CONFIG_UART_1 */
-#ifdef CONFIG_UART_2
+
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(usart2))
 	{STM32_PIN_PD5, STM32L4X_PINMUX_FUNC_PD5_USART2_TX },
 	{STM32_PIN_PD6, STM32L4X_PINMUX_FUNC_PD6_USART2_RX },
 #endif	/* CONFIG_UART_2 */
+
+#if 0 /* Not required for now. */
 
 #ifdef CONFIG_UART_4
 	/* STM32_PUPDR_PULL_UP Pull ups required for interurpt mode config.*/
@@ -44,6 +47,8 @@ static const struct pin_config pinconf[] = {
 	{STM32_PIN_PB10, STM32L4X_PINMUX_FUNC_PB10_I2C2_SCL},
 	{STM32_PIN_PB11, STM32L4X_PINMUX_FUNC_PB11_I2C2_SDA},
 #endif /* CONFIG_I2C_2 */
+
+#endif /* #if 0 */
 };
 
 static int pinmux_stm32_init(struct device *port)
