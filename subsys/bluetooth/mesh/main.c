@@ -123,6 +123,11 @@ int bt_mesh_provision(const u8_t net_key[16], u16_t net_idx,
 
 	memcpy(bt_mesh.dev_key, dev_key, 16);
 
+	if (IS_ENABLED(CONFIG_BT_MESH_LOW_POWER) &&
+	    IS_ENABLED(CONFIG_BT_MESH_LPN_SUB_ALL_NODES_ADDR)) {
+		bt_mesh_lpn_group_add(BT_MESH_ADDR_ALL_NODES);
+	}
+
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		BT_DBG("Storing network information persistently");
 		bt_mesh_store_net();
@@ -174,6 +179,12 @@ void bt_mesh_reset(void)
 	bt_mesh_tx_reset();
 
 	if (IS_ENABLED(CONFIG_BT_MESH_LOW_POWER)) {
+		if (IS_ENABLED(CONFIG_BT_MESH_LPN_SUB_ALL_NODES_ADDR)) {
+			u16_t group = BT_MESH_ADDR_ALL_NODES;
+
+			bt_mesh_lpn_group_del(&group, 1);
+		}
+
 		bt_mesh_lpn_disable(true);
 	}
 
@@ -252,7 +263,8 @@ static void model_resume(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
 		s32_t period_ms = bt_mesh_model_pub_period_get(mod);
 
 		if (period_ms) {
-			k_delayed_work_submit(&mod->pub->timer, period_ms);
+			k_delayed_work_submit(&mod->pub->timer,
+					      K_MSEC(period_ms));
 		}
 	}
 }

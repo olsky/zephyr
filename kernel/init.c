@@ -106,11 +106,11 @@ extern void idle(void *unused1, void *unused2, void *unused3);
 void z_bss_zero(void)
 {
 	(void)memset(__bss_start, 0, __bss_end - __bss_start);
-#ifdef DT_CCM_BASE_ADDRESS
+#if DT_HAS_NODE_STATUS_OKAY(DT_CHOSEN(zephyr_ccm))
 	(void)memset(&__ccm_bss_start, 0,
 		     ((u32_t) &__ccm_bss_end - (u32_t) &__ccm_bss_start));
 #endif
-#ifdef DT_DTCM_BASE_ADDRESS
+#if DT_HAS_NODE_STATUS_OKAY(DT_CHOSEN(zephyr_dtcm))
 	(void)memset(&__dtcm_bss_start, 0,
 		     ((u32_t) &__dtcm_bss_end - (u32_t) &__dtcm_bss_start));
 #endif
@@ -147,11 +147,11 @@ void z_data_copy(void)
 	(void)memcpy(&_ramfunc_ram_start, &_ramfunc_rom_start,
 		 (uintptr_t) &_ramfunc_ram_size);
 #endif /* CONFIG_ARCH_HAS_RAMFUNC_SUPPORT */
-#ifdef DT_CCM_BASE_ADDRESS
+#if DT_HAS_NODE_STATUS_OKAY(DT_CHOSEN(zephyr_ccm))
 	(void)memcpy(&__ccm_data_start, &__ccm_data_rom_start,
 		 __ccm_data_end - __ccm_data_start);
 #endif
-#ifdef DT_DTCM_BASE_ADDRESS
+#if DT_HAS_NODE_STATUS_OKAY(DT_CHOSEN(zephyr_dtcm))
 	(void)memcpy(&__dtcm_data_start, &__dtcm_data_rom_start,
 		 __dtcm_data_end - __dtcm_data_start);
 #endif
@@ -388,7 +388,7 @@ void z_early_boot_rand_get(u8_t *buf, size_t length)
 {
 	int n = sizeof(u32_t);
 #ifdef CONFIG_ENTROPY_HAS_DRIVER
-	struct device *entropy = device_get_binding(CONFIG_ENTROPY_NAME);
+	struct device *entropy = device_get_binding(DT_CHOSEN_ZEPHYR_ENTROPY_LABEL);
 	int rc;
 
 	if (entropy == NULL) {

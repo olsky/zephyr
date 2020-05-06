@@ -14,7 +14,7 @@
 		 * instruction.  See include/sw_isr_table.h.
 		 */
 		. = ALIGN(CONFIG_ARCH_SW_ISR_TABLE_ALIGN);
-		*(SW_ISR_TABLE)
+		*(_SW_ISR_TABLE_SECTION_NAME)
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 #endif
 
@@ -74,6 +74,13 @@
 		_k_mem_pool_list_start = .;
 		KEEP(*("._k_mem_pool.static.*"))
 		_k_mem_pool_list_end = .;
+	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+
+	SECTION_DATA_PROLOGUE(_k_heap_area,,SUBALIGN(4))
+	{
+		_k_heap_list_start = .;
+		KEEP(*("._k_heap.static.*"))
+		_k_heap_list_end = .;
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
 	SECTION_DATA_PROLOGUE(_k_sem_area,,SUBALIGN(4))
@@ -157,6 +164,16 @@
 		KEEP(*(SORT_BY_NAME(".net_l2.data*")))
 		__net_l2_data_end = .;
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+
+#if defined(CONFIG_UART_MUX)
+	SECTION_DATA_PROLOGUE(uart_mux,,SUBALIGN(4))
+	{
+		__uart_mux_start = .;
+		*(".uart_mux.*")
+		KEEP(*(SORT_BY_NAME(".uart_mux.*")))
+		__uart_mux_end = .;
+	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+#endif
 
 #if defined(CONFIG_USB_DEVICE_STACK)
 	SECTION_DATA_PROLOGUE(usb_descriptor,,SUBALIGN(1))

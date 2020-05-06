@@ -629,7 +629,7 @@ extern void shell_print_stream(const void *user_ctx, const char *data,
 	SHELL_STATS_DEFINE(_name);					      \
 	static K_THREAD_STACK_DEFINE(_name##_stack, CONFIG_SHELL_STACK_SIZE); \
 	static struct k_thread _name##_thread;				      \
-	static const struct shell _name = {				      \
+	static const Z_STRUCT_SECTION_ITERABLE(shell, _name) = {	      \
 		.default_prompt = _prompt,				      \
 		.iface = _transport_iface,				      \
 		.ctx = &UTIL_CAT(_name, _ctx),				      \
@@ -836,6 +836,19 @@ void shell_help(const struct shell *shell);
  * @returns		Result of the execution
  */
 int shell_execute_cmd(const struct shell *shell, const char *cmd);
+
+/** @brief Set root command for all shell instances.
+ *
+ * It allows setting from the code the root command. It is an equivalent of
+ * calling select command with one of the root commands as the argument
+ * (e.g "select log") except it sets command for all shell instances.
+ *
+ * @param cmd String with one of the root commands or null pointer to reset.
+ *
+ * @retval 0 if root command is set.
+ * @retval -EINVAL if invalid root command is provided.
+ */
+int shell_set_root_cmd(const char *cmd);
 
 /**
  * @}

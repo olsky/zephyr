@@ -24,7 +24,7 @@
 #include <arch/common/sys_io.h>
 #include <arch/common/ffs.h>
 
-#define STACK_ALIGN  4
+#define ARCH_STACK_PTR_ALIGN  4
 
 #ifndef _ASMLANGUAGE
 #include <zephyr/types.h>
@@ -39,10 +39,9 @@ extern "C" {
  * controller and no flags are currently supported.
  */
 #define ARCH_IRQ_CONNECT(irq_p, priority_p, isr_p, isr_param_p, flags_p) \
-({ \
+{ \
 	Z_ISR_DECLARE(irq_p, 0, isr_p, isr_param_p); \
-	irq_p; \
-})
+}
 
 extern void z_irq_spurious(void *unused);
 

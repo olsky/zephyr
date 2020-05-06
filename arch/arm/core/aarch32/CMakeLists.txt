@@ -7,13 +7,11 @@ if (CONFIG_COVERAGE)
 endif ()
 
 zephyr_library_sources(
-  exc_exit.S
   swap.c
   swap_helper.S
   irq_manage.c
   thread.c
   cpu_idle.S
-  fault_s.S
   fatal.c
   nmi.c
   nmi_on_reset.S

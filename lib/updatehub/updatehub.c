@@ -45,6 +45,8 @@ LOG_MODULE_REGISTER(updatehub);
 #define COAP_MAX_RETRY 3
 #define MAX_IP_SIZE 30
 
+#define SHA256_HEX_DIGEST_SIZE	((TC_SHA256_DIGEST_SIZE * 2) + 1)
+
 #if defined(CONFIG_UPDATEHUB_CE)
 #define UPDATEHUB_SERVER CONFIG_UPDATEHUB_SERVER
 #else
@@ -66,12 +68,30 @@ static struct updatehub_context {
 } ctx;
 
 static struct update_info {
-	char package_uid[TC_SHA256_BLOCK_SIZE + 1];
-	char sha256sum_image[TC_SHA256_BLOCK_SIZE + 1];
+	char package_uid[SHA256_HEX_DIGEST_SIZE];
+	char sha256sum_image[SHA256_HEX_DIGEST_SIZE];
 	int image_size;
 } update_info;
 
 static struct k_delayed_work updatehub_work_handle;
+
+static int bin2hex_str(u8_t *bin, size_t bin_len, char *str, size_t str_buf_len)
+{
+	if (bin == NULL || str == NULL) {
+		return -1;
+	}
+
+	/* ensures at least an empty string */
+	if (str_buf_len < 1) {
+		return -2;
+	}
+
+	memset(str, 0, str_buf_len);
+	/* str_buf_len - 1 ensure space for \0 */
+	bin2hex(bin, bin_len, str, str_buf_len - 1);
+
+	return 0;
+}
 
 static void wait_fds(void)
 {
@@ -91,8 +111,6 @@ static int metadata_hash_get(char *metadata)
 {
 	struct tc_sha256_state_struct sha256sum;
 	unsigned char hash[TC_SHA256_DIGEST_SIZE];
-	char buffer[3];
-	int buffer_len = 0;
 
 	if (tc_sha256_init(&sha256sum) == 0) {
 		return -1;
@@ -106,13 +124,9 @@ static int metadata_hash_get(char *metadata)
 		return -1;
 	}
 
-	memset(update_info.package_uid, 0, TC_SHA256_BLOCK_SIZE + 1);
-	for (int i = 0; i < TC_SHA256_DIGEST_SIZE; i++) {
-		snprintk(buffer, sizeof(buffer), "%02x",
-			 hash[i]);
-		buffer_len = buffer_len + strlen(buffer);
-		strncat(&update_info.package_uid[i], buffer,
-			MIN(TC_SHA256_BLOCK_SIZE, buffer_len));
+	if (bin2hex_str(hash, TC_SHA256_DIGEST_SIZE,
+		update_info.package_uid, SHA256_HEX_DIGEST_SIZE)) {
+		return -1;
 	}
 
 	return 0;
@@ -148,7 +162,7 @@ static bool start_coap_client(void)
 	}
 
 #if defined(CONFIG_UPDATEHUB_DTLS)
-	int verify = TLS_PEER_VERIFY_NONE;
+	int verify = TLS_PEER_VERIFY_REQUIRED;
 	sec_tag_t sec_list[] = { CA_CERTIFICATE_TAG };
 	int protocol = IPPROTO_DTLS_1_2;
 	char port[] = "5684";
@@ -324,26 +338,22 @@ error:
 
 static bool install_update_cb_sha256(void)
 {
-	u8_t image_hash[TC_SHA256_DIGEST_SIZE];
-	char buffer[3], sha256_image_dowloaded[TC_SHA256_BLOCK_SIZE + 1];
-	int i, buffer_len = 0;
+	u8_t hash[TC_SHA256_DIGEST_SIZE];
+	char sha256[SHA256_HEX_DIGEST_SIZE];
 
-	if (tc_sha256_final(image_hash, &ctx.sha256sum) < 1) {
+	if (tc_sha256_final(hash, &ctx.sha256sum) < 1) {
 		LOG_ERR("Could not finish sha256sum");
 		return false;
 	}
 
-	memset(&sha256_image_dowloaded, 0, TC_SHA256_BLOCK_SIZE + 1);
-	for (i = 0; i < TC_SHA256_DIGEST_SIZE; i++) {
-		snprintk(buffer, sizeof(buffer), "%02x", image_hash[i]);
-		buffer_len = buffer_len + strlen(buffer);
-		strncat(&sha256_image_dowloaded[i], buffer,
-			MIN(TC_SHA256_BLOCK_SIZE, buffer_len));
+	if (bin2hex_str(hash, TC_SHA256_DIGEST_SIZE,
+		sha256, SHA256_HEX_DIGEST_SIZE)) {
+		LOG_ERR("Could not create sha256sum hex representation");
+		return false;
 	}
 
-	if (strncmp(sha256_image_dowloaded,
-		update_info.sha256sum_image,
-		strlen(update_info.sha256sum_image)) != 0) {
+	if (strncmp(sha256, update_info.sha256sum_image,
+		    SHA256_HEX_DIGEST_SIZE) != 0) {
 		LOG_ERR("SHA256SUM of image are not the same");
 		ctx.code_status = UPDATEHUB_DOWNLOAD_ERROR;
 		return false;
@@ -497,7 +507,7 @@ static int report(enum updatehub_state state)
 	struct report report;
 	int ret = -1;
 	const char *exec = state_name(state);
-	char *device_id = k_malloc(DEVICE_ID_MAX_SIZE);
+	char *device_id = k_malloc(DEVICE_ID_HEX_MAX_SIZE);
 	char *firmware_version = k_malloc(BOOT_IMG_VER_STRLEN_MAX);
 
 	if (device_id == NULL || firmware_version == NULL) {
@@ -505,7 +515,7 @@ static int report(enum updatehub_state state)
 		goto error;
 	}
 
-	if (!updatehub_get_device_identity(device_id, DEVICE_ID_MAX_SIZE)) {
+	if (!updatehub_get_device_identity(device_id, DEVICE_ID_HEX_MAX_SIZE)) {
 		goto error;
 	}
 
@@ -577,22 +587,23 @@ error:
 	return ret;
 }
 
-static void probe_cb(char *metadata)
+static void probe_cb(char *metadata, size_t metadata_size)
 {
 	struct coap_packet reply;
-	char tmp[MAX_PAYLOAD_SIZE];
+	char tmp[MAX_DOWNLOAD_DATA];
+	size_t tmp_len;
 	int rcvd = -1;
 
 	wait_fds();
 
-	rcvd = recv(ctx.sock, metadata, MAX_PAYLOAD_SIZE, MSG_DONTWAIT);
+	rcvd = recv(ctx.sock, tmp, MAX_DOWNLOAD_DATA, MSG_DONTWAIT);
 	if (rcvd <= 0) {
 		LOG_ERR("Could not receive data");
 		ctx.code_status = UPDATEHUB_NETWORKING_ERROR;
 		return;
 	}
 
-	if (coap_packet_parse(&reply, metadata, rcvd, NULL, 0) < 0) {
+	if (coap_packet_parse(&reply, tmp, rcvd, NULL, 0) < 0) {
 		LOG_ERR("Invalid data received");
 		ctx.code_status = UPDATEHUB_DOWNLOAD_ERROR;
 		return;
@@ -604,10 +615,25 @@ static void probe_cb(char *metadata)
 		return;
 	}
 
-	memset(&tmp, 0, MAX_PAYLOAD_SIZE);
-	memcpy(tmp, reply.data + reply.offset, reply.max_len - reply.offset);
-	memset(metadata, 0, MAX_PAYLOAD_SIZE);
-	memcpy(metadata, tmp, strlen(tmp));
+	/* check if we have buffer space to receive payload */
+	if (metadata_size < (reply.max_len - reply.offset)) {
+		LOG_ERR("There is no buffer available");
+		ctx.code_status = UPDATEHUB_METADATA_ERROR;
+		return;
+	}
+
+	memcpy(metadata, reply.data + reply.offset,
+	       reply.max_len - reply.offset);
+
+	/* ensures payload have a valid string with size lower
+	 * than metadata_size
+	 */
+	tmp_len = strlen(metadata);
+	if (tmp_len >= metadata_size) {
+		LOG_ERR("Invalid metadata data received");
+		ctx.code_status = UPDATEHUB_METADATA_ERROR;
+		return;
+	}
 
 	ctx.code_status = UPDATEHUB_OK;
 
@@ -620,10 +646,12 @@ enum updatehub_response updatehub_probe(void)
 	struct resp_probe_some_boards metadata_some_boards;
 	struct resp_probe_any_boards metadata_any_boards;
 
-	char *metadata = k_malloc(MAX_PAYLOAD_SIZE);
-	char *metadata_copy = k_malloc(MAX_PAYLOAD_SIZE);
-	char *device_id = k_malloc(DEVICE_ID_MAX_SIZE);
+	char *metadata = k_malloc(MAX_DOWNLOAD_DATA);
+	char *metadata_copy = k_malloc(MAX_DOWNLOAD_DATA);
+	char *device_id = k_malloc(DEVICE_ID_HEX_MAX_SIZE);
 	char *firmware_version = k_malloc(BOOT_IMG_VER_STRLEN_MAX);
+
+	size_t sha256size;
 
 	if (device_id == NULL || firmware_version == NULL ||
 	    metadata == NULL || metadata_copy == NULL) {
@@ -643,7 +671,7 @@ enum updatehub_response updatehub_probe(void)
 		goto error;
 	}
 
-	if (!updatehub_get_device_identity(device_id, DEVICE_ID_MAX_SIZE)) {
+	if (!updatehub_get_device_identity(device_id, DEVICE_ID_HEX_MAX_SIZE)) {
 		ctx.code_status = UPDATEHUB_METADATA_ERROR;
 		goto error;
 	}
@@ -674,8 +702,7 @@ enum updatehub_response updatehub_probe(void)
 		goto cleanup;
 	}
 
-	memset(metadata, 0, MAX_PAYLOAD_SIZE);
-	probe_cb(metadata);
+	probe_cb(metadata, MAX_DOWNLOAD_DATA);
 
 	if (ctx.code_status != UPDATEHUB_OK) {
 		goto cleanup;
@@ -703,9 +730,18 @@ enum updatehub_response updatehub_probe(void)
 			goto cleanup;
 		}
 
+		sha256size = strlen(
+			metadata_any_boards.objects[1].objects.sha256sum) + 1;
+
+		if (sha256size != SHA256_HEX_DIGEST_SIZE) {
+			LOG_ERR("SHA256 size is invalid");
+			ctx.code_status = UPDATEHUB_METADATA_ERROR;
+			goto cleanup;
+		}
+
 		memcpy(update_info.sha256sum_image,
 		       metadata_any_boards.objects[1].objects.sha256sum,
-		       strlen(metadata_any_boards.objects[1].objects.sha256sum));
+		       SHA256_HEX_DIGEST_SIZE);
 		update_info.image_size = metadata_any_boards.objects[1].objects.size;
 	} else {
 		if (!is_compatible_hardware(&metadata_some_boards)) {
@@ -714,10 +750,19 @@ enum updatehub_response updatehub_probe(void)
 				UPDATEHUB_INCOMPATIBLE_HARDWARE;
 			goto cleanup;
 		}
+
+		sha256size = strlen(
+			metadata_any_boards.objects[1].objects.sha256sum) + 1;
+
+		if (sha256size != SHA256_HEX_DIGEST_SIZE) {
+			LOG_ERR("SHA256 size is invalid");
+			ctx.code_status = UPDATEHUB_METADATA_ERROR;
+			goto cleanup;
+		}
+
 		memcpy(update_info.sha256sum_image,
 		       metadata_some_boards.objects[1].objects.sha256sum,
-		       strlen(metadata_some_boards.objects[1]
-			      .objects.sha256sum));
+		       SHA256_HEX_DIGEST_SIZE);
 		update_info.image_size =
 			metadata_some_boards.objects[1].objects.size;
 	}

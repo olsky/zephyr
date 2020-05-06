@@ -22,7 +22,7 @@
 
 static void board_setup(void)
 {
-#if DT_HAS_NODE(DT_INST(0, test_gpio_basic_api))
+#if DT_HAS_NODE_STATUS_OKAY(DT_INST(0, test_gpio_basic_api))
 	/* PIN_IN and PIN_OUT must be on same controller. */
 	if (strcmp(DT_GPIO_LABEL(DT_INST(0, test_gpio_basic_api), out_gpios),
 		   DT_GPIO_LABEL(DT_INST(0, test_gpio_basic_api), in_gpios)) != 0) {
@@ -110,7 +110,7 @@ static void board_setup(void)
 	pinmux_pin_set(port0, PIN_IN,  pin_config);
 	pinmux_pin_set(port0, PIN_OUT, pin_config);
 #elif defined(CONFIG_BOARD_RV32M1_VEGA)
-	const char *pmx_name = CONFIG_PINMUX_RV32M1_PORTA_NAME;
+	const char *pmx_name = DT_LABEL(DT_NODELABEL(porta));
 	struct device *pmx = device_get_binding(pmx_name);
 
 	pinmux_pin_set(pmx, PIN_OUT, PORT_PCR_MUX(kPORT_MuxAsGpio));

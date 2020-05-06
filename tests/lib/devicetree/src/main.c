@@ -138,24 +138,30 @@ static void test_inst_props(void)
 
 static void test_has_path(void)
 {
-	zassert_equal(DT_HAS_NODE(DT_PATH(test, gpio_0)), 0, "gpio@0");
-	zassert_equal(DT_HAS_NODE(DT_PATH(test, gpio_deadbeef)), 1,
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_PATH(test, gpio_0)), 0,
+		      "gpio@0");
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_PATH(test, gpio_deadbeef)), 1,
 		      "gpio@deadbeef");
-	zassert_equal(DT_HAS_NODE(DT_PATH(test, gpio_abcd1234)), 1,
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_PATH(test, gpio_abcd1234)), 1,
 		      "gpio@abcd1234");
 }
 
 static void test_has_alias(void)
 {
-	zassert_equal(DT_HAS_NODE(DT_ALIAS(test_alias)), 1, "test-alias");
-	zassert_equal(DT_HAS_NODE(DT_ALIAS(test_undef)), 0, "test-undef");
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_ALIAS(test_alias)), 1,
+		      "test-alias");
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_ALIAS(test_undef)), 0,
+		      "test-undef");
 }
 
 static void test_inst_checks(void)
 {
-	zassert_equal(DT_HAS_NODE(DT_INST(0, vnd_gpio)), 1, "vnd,gpio #0");
-	zassert_equal(DT_HAS_NODE(DT_INST(1, vnd_gpio)), 1, "vnd,gpio #1");
-	zassert_equal(DT_HAS_NODE(DT_INST(2, vnd_gpio)), 0, "vnd,gpio #2");
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_INST(0, vnd_gpio)), 1,
+		      "vnd,gpio #0");
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_INST(1, vnd_gpio)), 1,
+		      "vnd,gpio #1");
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_INST(2, vnd_gpio)), 0,
+		      "vnd,gpio #2");
 
 	zassert_equal(DT_NUM_INST(vnd_gpio), 2, "num. vnd,gpio");
 	zassert_equal(DT_NUM_INST(xxxx), 0, "num. xxxx");
@@ -163,11 +169,12 @@ static void test_inst_checks(void)
 
 static void test_has_nodelabel(void)
 {
-	zassert_equal(DT_HAS_NODE(DT_NODELABEL(disabled_gpio)), 0,
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(disabled_gpio)), 0,
 		      "disabled_gpio");
-	zassert_equal(DT_HAS_NODE(DT_NODELABEL(test_nodelabel)), 1,
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(test_nodelabel)), 1,
 		      "test_nodelabel");
-	zassert_equal(DT_HAS_NODE(DT_NODELABEL(test_nodelabel_allcaps)), 1,
+	zassert_equal(DT_HAS_NODE_STATUS_OKAY(
+		      DT_NODELABEL(test_nodelabel_allcaps)), 1,
 		      "TEST_NODELABEL_ALLCAPS");
 }
 
@@ -280,7 +287,8 @@ static void test_bus(void)
 #undef DT_DRV_COMPAT
 #define DT_DRV_COMPAT vnd_i2c_device
 	zassert_equal(DT_HAS_DRV_INST(0), 1, "missing i2c inst 0");
-	zassert_equal(DT_HAS_DRV_INST(1), 0, "unexpected i2c inst 1");
+	zassert_equal(DT_HAS_DRV_INST(1), 1, "missing i2c inst 1");
+	zassert_equal(DT_HAS_DRV_INST(2), 0, "unexpected i2c inst 2");
 
 	zassert_equal(DT_INST_ON_BUS(0, i2c), 1, "i2c inst 0 not on i2c");
 	zassert_equal(DT_INST_ON_BUS(0, spi), 0, "i2c inst 0 on spi");
@@ -881,6 +889,178 @@ static void test_io_channels(void)
 	zassert_equal(DT_INST_IO_CHANNELS_INPUT(0), 10, "input 0 implicit");
 }
 
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_adc_temp_sensor
+static void test_dma(void)
+{
+	zassert_true(!strcmp(DT_DMAS_LABEL_BY_NAME(TEST_TEMP, rx),
+			     "TEST_DMA_CTRL_2"),
+		     "dma-controller label rx channel");
+	zassert_true(!strcmp(DT_INST_DMAS_LABEL_BY_NAME(0, rx),
+			     "TEST_DMA_CTRL_2"),
+		     "dma-controller label rx channel");
+	zassert_true(!strcmp(DT_DMAS_LABEL_BY_NAME(TEST_TEMP, tx),
+			     "TEST_DMA_CTRL_1"),
+		     "dma-controller label tx channel");
+	zassert_true(!strcmp(DT_INST_DMAS_LABEL_BY_NAME(0, tx),
+			     "TEST_DMA_CTRL_1"),
+		     "dma-controller label tx channel");
+
+	zassert_true(!strcmp(DT_DMAS_LABEL_BY_IDX(TEST_TEMP, 1),
+			     "TEST_DMA_CTRL_2"),
+		     "dma-controller label channel idx 1");
+	zassert_true(!strcmp(DT_INST_DMAS_LABEL_BY_IDX(0, 1),
+			     "TEST_DMA_CTRL_2"),
+		     "dma-controller label channel idx 1");
+	zassert_true(!strcmp(DT_DMAS_LABEL_BY_IDX(TEST_TEMP, 0),
+			     "TEST_DMA_CTRL_1"),
+		     "dma-controller label channel idx 0");
+	zassert_true(!strcmp(DT_INST_DMAS_LABEL_BY_IDX(0, 0),
+			     "TEST_DMA_CTRL_1"),
+		     "dma-controller label channel idx 0");
+
+	zassert_equal(DT_DMAS_CELL_BY_NAME(TEST_TEMP, rx, channel), 3,
+		      "channel cell of rx dma channel");
+	zassert_equal(DT_INST_DMAS_CELL_BY_NAME(0, rx, channel), 3,
+		      "channel cell of rx dma channel");
+	zassert_equal(DT_DMAS_CELL_BY_NAME(TEST_TEMP, rx, slot), 4,
+		      "slot cell of rx dma channel");
+	zassert_equal(DT_INST_DMAS_CELL_BY_NAME(0, rx, slot), 4,
+		      "slot cell of rx dma channel");
+
+	zassert_equal(DT_DMAS_CELL_BY_IDX(TEST_TEMP, 1, channel), 3,
+		      "channel cell of idx 1 dma channel");
+	zassert_equal(DT_INST_DMAS_CELL_BY_IDX(0, 1, channel), 3,
+		      "channel cell of idx 1 dma channel");
+	zassert_equal(DT_DMAS_CELL_BY_IDX(TEST_TEMP, 1, slot), 4,
+		      "slot cell of idx 1 dma channel");
+	zassert_equal(DT_INST_DMAS_CELL_BY_IDX(0, 1, slot), 4,
+		      "slot cell of idx 1 dma channel");
+
+	zassert_true(DT_DMAS_HAS_NAME(TEST_TEMP, tx),
+		     "tx dma channel available");
+	zassert_true(DT_INST_DMAS_HAS_NAME(0, tx),
+		     "tx dma channel available");
+	zassert_false(DT_DMAS_HAS_NAME(TEST_TEMP, output),
+		      "output dma channel not available");
+	zassert_false(DT_INST_DMAS_HAS_NAME(0, output),
+		      "output dma channel not available");
+
+	zassert_true(DT_DMAS_HAS_IDX(TEST_TEMP, 1),
+		     "Idx 1 dma channel available");
+	zassert_true(DT_INST_DMAS_HAS_IDX(0, 1),
+		     "Idx 1 dma channel available");
+	zassert_false(DT_DMAS_HAS_IDX(TEST_TEMP, 2),
+		      "Idx 2 dma channel not available");
+	zassert_false(DT_INST_DMAS_HAS_IDX(0, 2),
+		      "Idx 2 dma channel not available");
+}
+
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_phandle_holder
+static void test_pwms(void)
+{
+	/* DT_PWMS_LABEL_BY_IDX */
+	zassert_true(!strcmp(DT_PWMS_LABEL_BY_IDX(TEST_PH, 0),
+			     "TEST_PWM_CTRL_1"),
+		     "label 0");
+
+	/* DT_PWMS_LABEL_BY_NAME */
+	zassert_true(!strcmp(DT_PWMS_LABEL_BY_NAME(TEST_PH, red),
+			     "TEST_PWM_CTRL_1"),
+		     "label red");
+
+	/* DT_PWMS_LABEL */
+	zassert_true(!strcmp(DT_PWMS_LABEL(TEST_PH), "TEST_PWM_CTRL_1"),
+		     "label 0");
+
+	/* DT_PWMS_CELL_BY_IDX */
+	zassert_equal(DT_PWMS_CELL_BY_IDX(TEST_PH, channel, 1), 5,
+		      "pwm 2 channel");
+	zassert_equal(DT_PWMS_CELL_BY_IDX(TEST_PH, flags, 1), 1,
+		      "pwm 2 flags");
+
+	/* DT_PWMS_CELL_BY_NAME */
+	zassert_equal(DT_PWMS_CELL_BY_NAME(TEST_PH, red, channel), 8,
+		      "pwm-red channel");
+	zassert_equal(DT_PWMS_CELL_BY_NAME(TEST_PH, red, flags), 3,
+		      "pwm-red flags");
+
+	/* DT_PWMS_CELL */
+	zassert_equal(DT_PWMS_CELL(TEST_PH, channel), 8, "pwm channel");
+	zassert_equal(DT_PWMS_CELL(TEST_PH, flags), 3, "pwm flags");
+
+	/* DT_PWMS_CHANNEL_BY_IDX */
+	zassert_equal(DT_PWMS_CHANNEL_BY_IDX(TEST_PH, 1), 5, "pwm channel");
+
+	/* DT_PWMS_CHANNEL_BY_NAME */
+	zassert_equal(DT_PWMS_CHANNEL_BY_NAME(TEST_PH, green), 5,
+		      "pwm channel");
+
+	/* DT_PWMS_CHANNEL */
+	zassert_equal(DT_PWMS_CHANNEL(TEST_PH), 8, "pwm channel");
+
+	/* DT_PWMS_FLAGS_BY_IDX */
+	zassert_equal(DT_PWMS_FLAGS_BY_IDX(TEST_PH, 1), 1, "pwm channel");
+
+	/* DT_PWMS_FLAGS_BY_NAME */
+	zassert_equal(DT_PWMS_FLAGS_BY_NAME(TEST_PH, green), 1,
+		      "pwm channel");
+
+	/* DT_PWMS_FLAGS */
+	zassert_equal(DT_PWMS_FLAGS(TEST_PH), 3, "pwm channel");
+
+	/* DT_INST */
+	zassert_equal(DT_NUM_INST(DT_DRV_COMPAT), 1, "one instance");
+
+	/* DT_INST_PWMS_LABEL_BY_IDX */
+	zassert_true(!strcmp(DT_INST_PWMS_LABEL_BY_IDX(0, 0),
+			     "TEST_PWM_CTRL_1"),
+		     "label 0");
+
+	/* DT_INST_PWMS_LABEL_BY_NAME */
+	zassert_true(!strcmp(DT_INST_PWMS_LABEL_BY_NAME(0, green),
+			     "TEST_PWM_CTRL_2"),
+		     "label green");
+
+	/* DT_INST_PWMS_LABEL */
+	zassert_true(!strcmp(DT_INST_PWMS_LABEL(0), "TEST_PWM_CTRL_1"),
+		     "label 0");
+
+	/* DT_INST_PWMS_CELL_BY_IDX */
+	zassert_equal(DT_INST_PWMS_CELL_BY_IDX(0, channel, 1), 5,
+		      "pwm 2 channel");
+	zassert_equal(DT_INST_PWMS_CELL_BY_IDX(0, flags, 1), 1, "pwm 2 flags");
+
+	/* DT_INST_PWMS_CELL_BY_NAME */
+	zassert_equal(DT_INST_PWMS_CELL_BY_NAME(0, green, channel), 5,
+		      "pwm-green channel");
+	zassert_equal(DT_INST_PWMS_CELL_BY_NAME(0, green, flags), 1,
+		      "pwm-green flags");
+
+	/* DT_INST_PWMS_CELL */
+	zassert_equal(DT_INST_PWMS_CELL(0, channel), 8, "pwm channel");
+	zassert_equal(DT_INST_PWMS_CELL(0, flags), 3, "pwm flags");
+
+	/* DT_INST_PWMS_CHANNEL_BY_IDX */
+	zassert_equal(DT_INST_PWMS_CHANNEL_BY_IDX(0, 1), 5, "pwm channel");
+
+	/* DT_INST_PWMS_CHANNEL_BY_NAME */
+	zassert_equal(DT_INST_PWMS_CHANNEL_BY_NAME(0, green), 5, "pwm channel");
+
+	/* DT_INST_PWMS_CHANNEL */
+	zassert_equal(DT_INST_PWMS_CHANNEL(0), 8, "pwm channel");
+
+	/* DT_INST_PWMS_FLAGS_BY_IDX */
+	zassert_equal(DT_INST_PWMS_FLAGS_BY_IDX(0, 1), 1, "pwm channel");
+
+	/* DT_INST_PWMS_FLAGS_BY_NAME */
+	zassert_equal(DT_INST_PWMS_FLAGS_BY_NAME(0, red), 3, "pwm channel");
+
+	/* DT_INST_PWMS_FLAGS */
+	zassert_equal(DT_INST_PWMS_FLAGS(0), 3, "pwm channel");
+}
+
 #define TO_STRING(x) TO_STRING_(x)
 #define TO_STRING_(x) #x
 
@@ -1024,9 +1204,9 @@ static void test_devices(void)
 	struct device *dev_abcd;
 	unsigned int val;
 
-	zassert_true(DT_HAS_NODE(INST(0)), "inst 0 device");
-	zassert_true(DT_HAS_NODE(INST(1)), "inst 1 device");
-	zassert_false(DT_HAS_NODE(INST(2)), "inst 2 device");
+	zassert_true(DT_HAS_NODE_STATUS_OKAY(INST(0)), "inst 0 device");
+	zassert_true(DT_HAS_NODE_STATUS_OKAY(INST(1)), "inst 1 device");
+	zassert_false(DT_HAS_NODE_STATUS_OKAY(INST(2)), "inst 2 device");
 
 	zassert_equal(DT_NUM_INST(vnd_gpio), 2, "wrong number of gpio devs");
 
@@ -1106,6 +1286,11 @@ static void test_clocks(void)
 			     "TEST_CLOCK"),
 		     "label 0");
 
+	/* DT_CLOCKS_LABEL_BY_NAME */
+	zassert_true(!strcmp(DT_CLOCKS_LABEL_BY_NAME(TEST_TEMP, clk_b),
+			     "TEST_CLOCK"),
+		     "label b");
+
 	/* DT_CLOCKS_LABEL */
 	zassert_true(!strcmp(DT_CLOCKS_LABEL(TEST_TEMP), "TEST_CLOCK"),
 		     "label 0");
@@ -1114,6 +1299,12 @@ static void test_clocks(void)
 	zassert_equal(DT_CLOCKS_CELL_BY_IDX(TEST_TEMP, bits, 2), 2,
 		      "clk 2 bits");
 	zassert_equal(DT_CLOCKS_CELL_BY_IDX(TEST_TEMP, bus, 2), 8, "clk 2 bus");
+
+	/* DT_CLOCKS_CELL_BY_NAME */
+	zassert_equal(DT_CLOCKS_CELL_BY_NAME(TEST_TEMP, clk_a, bits), 7,
+		      "clk-a bits");
+	zassert_equal(DT_CLOCKS_CELL_BY_NAME(TEST_TEMP, clk_b, bus), 8,
+		      "clk-b bus");
 
 	/* DT_CLOCKS_CELL */
 	zassert_equal(DT_CLOCKS_CELL(TEST_TEMP, bits), 7, "clk bits");
@@ -1132,6 +1323,11 @@ static void test_clocks(void)
 			     "TEST_CLOCK"),
 		     "label 0");
 
+	/* DT_INST_CLOCKS_LABEL_BY_NAME */
+	zassert_true(!strcmp(DT_INST_CLOCKS_LABEL_BY_NAME(0, clk_b),
+			     "TEST_CLOCK"),
+		     "label b");
+
 	/* DT_INST_CLOCKS_LABEL */
 	zassert_true(!strcmp(DT_INST_CLOCKS_LABEL(0), "TEST_CLOCK"),
 		     "label 0");
@@ -1141,6 +1337,12 @@ static void test_clocks(void)
 		      "clk 2 bits");
 	zassert_equal(DT_INST_CLOCKS_CELL_BY_IDX(0, bus, 2), 8, "clk 2 bus");
 
+	/* DT_INST_CLOCKS_CELL_BY_NAME */
+	zassert_equal(DT_INST_CLOCKS_CELL_BY_NAME(0, clk_a, bits), 7,
+		      "clk-a bits");
+	zassert_equal(DT_INST_CLOCKS_CELL_BY_NAME(0, clk_b, bus), 8,
+		      "clk-b bus");
+
 	/* DT_INST_CLOCKS_CELL */
 	zassert_equal(DT_INST_CLOCKS_CELL(0, bits), 7, "clk bits");
 	zassert_equal(DT_INST_CLOCKS_CELL(0, bus), 3, "clk bus");
@@ -1149,6 +1351,22 @@ static void test_clocks(void)
 	zassert_equal(DT_INST_PROP_BY_PHANDLE_IDX(0, clocks, 1,
 					     clock_frequency), 25000000,
 		      "fixed clk freq");
+}
+
+static void test_parent(void)
+{
+	/* The label of a child node's parent is the label of the parent. */
+	zassert_true(!strcmp(DT_LABEL(DT_PARENT(TEST_SPI_DEV_0)),
+			     DT_LABEL(TEST_SPI_BUS_0)),
+		     "dev 0 parent");
+	/*
+	 * We should be able to use DT_PARENT() even with nodes, like /test,
+	 * that have no matching compatible.
+	 */
+	zassert_true(!strcmp(DT_LABEL(DT_CHILD(DT_PARENT(TEST_SPI_BUS_0),
+					       spi_33334444)),
+			     DT_LABEL(TEST_SPI_BUS_0)),
+		     "round trip through node with no compatible");
 }
 
 void test_main(void)
@@ -1169,13 +1387,16 @@ void test_main(void)
 			 ztest_unit_test(test_phandles),
 			 ztest_unit_test(test_gpio),
 			 ztest_unit_test(test_io_channels),
+			 ztest_unit_test(test_dma),
+			 ztest_unit_test(test_pwms),
 			 ztest_unit_test(test_macro_names),
 			 ztest_unit_test(test_arrays),
 			 ztest_unit_test(test_devices),
 			 ztest_unit_test(test_cs_gpios),
 			 ztest_unit_test(test_chosen),
 			 ztest_unit_test(test_enums),
-			 ztest_unit_test(test_clocks)
+			 ztest_unit_test(test_clocks),
+			 ztest_unit_test(test_parent)
 		);
 	ztest_run_test_suite(devicetree_api);
 }

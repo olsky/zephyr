@@ -64,16 +64,13 @@ static struct modem_pin modem_pins[] = {
 #define MDM_POWER_DISABLE		0
 #define MDM_RESET_NOT_ASSERTED		1
 #define MDM_RESET_ASSERTED		0
-#if DT_INST_NODE_HAS_PROP(0, mdm_vint_gpios)
-#define MDM_VINT_ENABLE			1
-#define MDM_VINT_DISABLE		0
-#endif
 
 #define MDM_CMD_TIMEOUT			K_SECONDS(10)
 #define MDM_DNS_TIMEOUT			K_SECONDS(70)
 #define MDM_CMD_CONN_TIMEOUT		K_SECONDS(120)
 #define MDM_REGISTRATION_TIMEOUT	K_SECONDS(180)
 #define MDM_PROMPT_CMD_DELAY		K_MSEC(75)
+#define MDM_SENDMSG_SLEEP       K_MSEC(1)
 
 #define MDM_MAX_DATA_LENGTH		1024
 #define MDM_RECV_MAX_BUF		30
@@ -391,7 +388,7 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_rssi_csq)
 {
 	int rssi;
 
-	rssi = ATOI(argv[1], 0, "qual");
+	rssi = ATOI(argv[0], 0, "signal_power");
 	if (rssi == 31) {
 		mctx.data_rssi = -46;
 	} else if (rssi >= 0 && rssi <= 31) {
@@ -401,7 +398,7 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_rssi_csq)
 		mctx.data_rssi = -1000;
 	}
 
-	LOG_INF("QUAL: %d", mctx.data_rssi);
+	LOG_INF("RSSI: %d", mctx.data_rssi);
 	return 0;
 }
 #endif
@@ -642,7 +639,7 @@ static int pin_init(void)
 #if DT_INST_NODE_HAS_PROP(0, mdm_vint_gpios)
 	LOG_DBG("Waiting for MDM_VINT_PIN = 0");
 
-	while (modem_pin_read(&mctx, MDM_VINT) != MDM_VINT_DISABLE) {
+	while (modem_pin_read(&mctx, MDM_VINT) > 0) {
 #if defined(CONFIG_MODEM_UBLOX_SARA_U2)
 		/* try to power off again */
 		LOG_DBG("MDM_POWER_PIN -> DISABLE");
@@ -677,7 +674,7 @@ static int pin_init(void)
 	LOG_DBG("Waiting for MDM_VINT_PIN = 1");
 	do {
 		k_sleep(K_MSEC(100));
-	} while (modem_pin_read(&mctx, MDM_VINT) != MDM_VINT_ENABLE);
+	} while (modem_pin_read(&mctx, MDM_VINT) == 0);
 #else
 	k_sleep(K_SECONDS(10));
 #endif
@@ -973,7 +970,7 @@ static int offload_close(struct modem_socket *sock)
 		return 0;
 	}
 
-	if (sock->is_connected) {
+	if (sock->is_connected || sock->ip_proto == IPPROTO_UDP) {
 		snprintk(buf, sizeof(buf), "AT+USOCL=%d", sock->id);
 
 		ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
@@ -1252,6 +1249,40 @@ static ssize_t offload_write(void *obj, const void *buffer, size_t count)
 	return offload_sendto(obj, buffer, count, 0, NULL, 0);
 }
 
+static ssize_t offload_sendmsg(void *obj, const struct msghdr *msg, int flags)
+{
+	ssize_t sent = 0;
+	int rc;
+
+	LOG_DBG("msg_iovlen:%d flags:%d", msg->msg_iovlen, flags);
+
+	for (int i = 0; i < msg->msg_iovlen; i++) {
+
+		const char *buf = msg->msg_iov[i].iov_base;
+		size_t len = msg->msg_iov[i].iov_len;
+
+		while (len > 0) {
+			rc = offload_sendto(obj, buf, len, flags,
+							msg->msg_name,
+							msg->msg_namelen);
+			if (rc < 0) {
+				if (rc == -EAGAIN) {
+					k_sleep(MDM_SENDMSG_SLEEP);
+				} else {
+					sent = rc;
+					break;
+				}
+			} else {
+				sent += rc;
+				buf += rc;
+				len -= rc;
+			}
+		}
+	}
+
+	return (ssize_t)sent;
+}
+
 static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	.fd_vtable = {
 		.read = offload_read,
@@ -1264,7 +1295,7 @@ static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	.recvfrom = offload_recvfrom,
 	.listen = NULL,
 	.accept = NULL,
-	.sendmsg = NULL,
+	.sendmsg = offload_sendmsg,
 	.getsockopt = NULL,
 	.setsockopt = NULL,
 };

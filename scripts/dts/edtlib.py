@@ -120,6 +120,10 @@ class EDT:
                 ...
         };
 
+    label2node:
+      A collections.OrderedDict that maps a node label to the node with
+      that label.
+
     chosen_nodes:
       A collections.OrderedDict that maps the properties defined on the
       devicetree's /chosen node to their values. 'chosen' is indexed by
@@ -171,7 +175,7 @@ class EDT:
 
         self._init_compat2binding(bindings_dirs)
         self._init_nodes()
-        self._init_compat2enabled()
+        self._init_luts()
 
         self._define_order()
 
@@ -424,6 +428,9 @@ class EDT:
                 _err("'include:' in {} should be a string or a list of strings"
                      .format(binding_path))
 
+        if "child-binding" in binding and "include" in binding["child-binding"]:
+            self._merge_included_bindings(binding["child-binding"], binding_path)
+
         # Legacy syntax
         if "inherits" in binding:
             self._warn("the 'inherits:' syntax in {} is deprecated and will "
@@ -513,11 +520,17 @@ class EDT:
             node._init_interrupts()
             node._init_pinctrls()
 
-    def _init_compat2enabled(self):
-        # Creates self.compat2enabled
+    def _init_luts(self):
+        # Initialize compat2enabled and label2node lookup tables
+        # (LUTs).
 
         self.compat2enabled = defaultdict(list)
+        self.label2node = OrderedDict()
+
         for node in self.nodes:
+            for label in node.labels:
+                self.label2node[label] = node
+
             if node.enabled:
                 for compat in node.compats:
                     self.compat2enabled[compat].append(node)

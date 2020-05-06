@@ -44,8 +44,8 @@ Deprecated in this release
 
     * All timeout values are now encapsulated k_timeout_t opaque structure when
       passing them to the kernel. If you want to revert to the previous s32_t
-      type for the timeout parameter pleae enable the
-      CONFIG_LEGACY_TIMEOUT_API Kconfig option
+      type for the timeout parameter, please enable
+      :option:`CONFIG_LEGACY_TIMEOUT_API`
 
 * Bluetooth
 
@@ -54,8 +54,30 @@ Deprecated in this release
   * bt_le_scan_param::filter_dup, use bt_le_scan_param::options instead
   * bt_conn_create_le(), use bt_conn_le_create() instead
   * bt_conn_create_auto_le(), use bt_conn_le_create_auto() instead
-  * bt_conn_create_slave_le(), use bt_conn_le_create_slave() instead
-  * BT_LE_ADV_* macros, use BT_HCI_ADV_* macros instead
+  * bt_conn_create_slave_le(), use bt_le_adv_start() instead with
+    bt_le_adv_param::peer set to the remote peers address.
+  * BT_LE_ADV_* macros, use BT_GAP_ADV_* enums instead
+
+* Boards
+
+  * nrf51_pca10028 has been renamed to nrf51dk_nrf51422
+  * nrf51_pca10031 has been renamed to nrf51dongle_nrf51422
+  * nrf52810_pca10040 has been renamed to nrf52dk_nrf52810
+  * nrf52_pca10040 has been renamed to nrf52dk_nrf52832
+  * nrf52833_pca10100 has been renamed to nrf52833dk_nrf52833
+  * nrf52811_pca10056 has been renamed to nrf52840dk_nrf52811
+  * nrf52840_pca10056 has been renamed to nrf52840dk_nrf52840
+  * nrf52840_pca10059 has been renamed to nrf52840dongle_nrf52840
+  * nrf9160_pca10090 has been renamed to nrf9160dk_nrf9160
+  * nrf52840_pca10090 has been renamed to nrf9160dk_nrf52840
+  * nrf52_pca20020 has been renamed to thingy52_nrf52832
+  * nrf5340_dk_nrf5340 has been renamed to nrf5340pdk_nrf5340
+
+* Devicetree
+
+  * The C macros generated from devicetree. Use the new ``<devicetree.h>``
+    accessor API instead; see :ref:`dt-guide` for details. Use of the legacy
+    macros requires enabling :option:`CONFIG_LEGACY_DEVICETREE_MACROS`.
 
 Removed APIs in this release
 ============================
@@ -64,6 +86,17 @@ Removed APIs in this release
 Stable API changes in this release
 ==================================
 
+* Bluetooth Mesh
+
+  * The net_idx parameter has been removed from the Health Client model
+    APIs since it can be derived (by the stack) from the app_idx parameter
+
+* Networking
+
+  * The NET_DEVICE_INIT(), NET_DEVICE_INIT_INSTANCE(), NET_DEVICE_OFFLOAD_INIT()
+    and ETH_NET_DEVICE_INIT() macros changed and take a device power management
+    function pointer parameter. If networking PM is not implemented for the
+    specific network device, the device_pm_control_nop value can be used.
 
 Kernel
 ******

@@ -171,6 +171,9 @@ static inline int bt_conn_send(struct bt_conn *conn, struct net_buf *buf)
 	return bt_conn_send_cb(conn, buf, NULL, NULL);
 }
 
+/* Check if a connection object with the peer already exists */
+bool bt_conn_exists_le(u8_t id, const bt_addr_le_t *peer);
+
 /* Add a new LE connection */
 struct bt_conn *bt_conn_add_le(u8_t id, const bt_addr_le_t *peer);
 
@@ -246,7 +249,8 @@ void bt_conn_security_changed(struct bt_conn *conn, enum bt_security_err err);
 /* Prepare a PDU to be sent over a connection */
 #if defined(CONFIG_NET_BUF_LOG)
 struct net_buf *bt_conn_create_pdu_timeout_debug(struct net_buf_pool *pool,
-						 size_t reserve, s32_t timeout,
+						 size_t reserve,
+						 k_timeout_t timeout,
 						 const char *func, int line);
 #define bt_conn_create_pdu_timeout(_pool, _reserve, _timeout) \
 	bt_conn_create_pdu_timeout_debug(_pool, _reserve, _timeout, \
@@ -257,7 +261,7 @@ struct net_buf *bt_conn_create_pdu_timeout_debug(struct net_buf_pool *pool,
 					 __func__, __line__)
 #else
 struct net_buf *bt_conn_create_pdu_timeout(struct net_buf_pool *pool,
-					   size_t reserve, s32_t timeout);
+					   size_t reserve, k_timeout_t timeout);
 
 #define bt_conn_create_pdu(_pool, _reserve) \
 	bt_conn_create_pdu_timeout(_pool, _reserve, K_FOREVER)
@@ -265,7 +269,8 @@ struct net_buf *bt_conn_create_pdu_timeout(struct net_buf_pool *pool,
 
 /* Prepare a PDU to be sent over a connection */
 #if defined(CONFIG_NET_BUF_LOG)
-struct net_buf *bt_conn_create_frag_timeout_debug(size_t reserve, s32_t timeout,
+struct net_buf *bt_conn_create_frag_timeout_debug(size_t reserve,
+						  k_timeout_t timeout,
 						  const char *func, int line);
 
 #define bt_conn_create_frag_timeout(_reserve, _timeout) \
@@ -276,7 +281,8 @@ struct net_buf *bt_conn_create_frag_timeout_debug(size_t reserve, s32_t timeout,
 	bt_conn_create_frag_timeout_debug(_reserve, K_FOREVER, \
 					  __func__, __LINE__)
 #else
-struct net_buf *bt_conn_create_frag_timeout(size_t reserve, s32_t timeout);
+struct net_buf *bt_conn_create_frag_timeout(size_t reserve,
+					    k_timeout_t timeout);
 
 #define bt_conn_create_frag(_reserve) \
 	bt_conn_create_frag_timeout(_reserve, K_FOREVER)

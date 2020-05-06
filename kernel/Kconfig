@@ -374,15 +374,6 @@ config SYSTEM_WORKQUEUE_PRIORITY
 	  priority. This means that any work handler, once started, won't
 	  be preempted by any other thread until finished.
 
-config OFFLOAD_WORKQUEUE_STACK_SIZE
-	int "Workqueue stack size for thread offload requests"
-	default 4096 if COVERAGE
-	default 1024
-
-config OFFLOAD_WORKQUEUE_PRIORITY
-	int "Offload requests workqueue priority"
-	default -1
-
 endmenu
 
 menu "Atomic Operations"
@@ -473,6 +464,16 @@ config NUM_PIPE_ASYNC_MSGS
 
 	  Setting this option to 0 disables support for asynchronous
 	  pipe messages.
+
+config MEM_POOL_HEAP_BACKEND
+	bool "Use k_heap as the backend for k_mem_pool"
+	default y
+	help
+	  This selects a backend implementation for k_mem_pool based
+	  on the sys_heap abstraction instead of the legacy
+	  sys_mem_pool.  This backend has significantly better
+	  performance and memory utilization for general purpose
+	  workloads.
 
 config HEAP_MEM_POOL_SIZE
 	int "Heap memory pool size (in bytes)"
@@ -580,7 +581,7 @@ config LEGACY_TIMEOUT_API
 	  not being able to use new features.
 
 config TIMEOUT_64BIT
-	bool
+	bool "Store kernel timeouts in 64 bit precision"
 	depends on !LEGACY_TIMEOUT_API
 	default y
 	help

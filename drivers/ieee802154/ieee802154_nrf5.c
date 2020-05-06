@@ -48,6 +48,11 @@ struct nrf5_802154_config {
 
 static struct nrf5_802154_data nrf5_data;
 
+#define ACK_REQUEST_BYTE 1
+#define ACK_REQUEST_BIT (1 << 5)
+#define FRAME_PENDING_BYTE 1
+#define FRAME_PENDING_BIT (1 << 4)
+
 /* Convenience defines for RADIO */
 #define NRF5_802154_DATA(dev) \
 	((struct nrf5_802154_data * const)(dev)->driver_data)
@@ -109,6 +114,7 @@ static void nrf5_rx_thread(void *arg1, void *arg2, void *arg3)
 
 		net_pkt_set_ieee802154_lqi(pkt, rx_frame->lqi);
 		net_pkt_set_ieee802154_rssi(pkt, rx_frame->rssi);
+		net_pkt_set_ieee802154_ack_fpb(pkt, rx_frame->ack_fpb);
 
 #if defined(CONFIG_NET_PKT_TIMESTAMP)
 		struct net_ptp_time timestamp = {
@@ -487,13 +493,30 @@ static void nrf5_iface_init(struct net_if *iface)
 	ieee802154_init(iface);
 }
 
-int nrf5_configure(struct device *dev, enum ieee802154_config_type type,
-		   const struct ieee802154_config *config)
+static int nrf5_configure(struct device *dev, enum ieee802154_config_type type,
+			  const struct ieee802154_config *config)
 {
 	ARG_UNUSED(dev);
 
 	switch (type) {
 	case IEEE802154_CONFIG_AUTO_ACK_FPB:
+		if (config->auto_ack_fpb.enabled) {
+			switch (config->auto_ack_fpb.mode) {
+			case IEEE802154_FPB_ADDR_MATCH_THREAD:
+				nrf_802154_src_addr_matching_method_set(
+					NRF_802154_SRC_ADDR_MATCH_THREAD);
+				break;
+
+			case IEEE802154_FPB_ADDR_MATCH_ZIGBEE:
+				nrf_802154_src_addr_matching_method_set(
+					NRF_802154_SRC_ADDR_MATCH_ZIGBEE);
+				break;
+
+			default:
+				return -EINVAL;
+			}
+		}
+
 		nrf_802154_auto_pending_bit_set(config->auto_ack_fpb.enabled);
 		break;
 
@@ -554,6 +577,15 @@ void nrf_802154_received_timestamp_raw(uint8_t *data, int8_t power, uint8_t lqi,
 		nrf5_data.rx_frames[i].rssi = power;
 		nrf5_data.rx_frames[i].lqi = lqi;
 
+		if (data[ACK_REQUEST_BYTE] & ACK_REQUEST_BIT) {
+			nrf5_data.rx_frames[i].ack_fpb =
+						nrf5_data.last_frame_ack_fpb;
+		} else {
+			nrf5_data.rx_frames[i].ack_fpb = false;
+		}
+
+		nrf5_data.last_frame_ack_fpb = false;
+
 		k_fifo_put(&nrf5_data.rx_fifo, &nrf5_data.rx_frames[i]);
 
 		return;
@@ -564,7 +596,13 @@ void nrf_802154_received_timestamp_raw(uint8_t *data, int8_t power, uint8_t lqi,
 
 void nrf_802154_receive_failed(nrf_802154_rx_error_t error)
 {
-	/* Intentionally empty. */
+	nrf5_data.last_frame_ack_fpb = false;
+}
+
+void nrf_802154_tx_ack_started(const uint8_t *data)
+{
+	nrf5_data.last_frame_ack_fpb =
+				data[FRAME_PENDING_BYTE] & FRAME_PENDING_BIT;
 }
 
 void nrf_802154_transmitted_raw(const uint8_t *frame, uint8_t *ack,

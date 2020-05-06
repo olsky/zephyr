@@ -464,6 +464,13 @@ config CPU_HAS_FPU
 	  This option is enabled when the CPU has hardware floating point
 	  unit.
 
+config CPU_HAS_FPU_DOUBLE_PRECISION
+	bool
+	select CPU_HAS_FPU
+	help
+	  When enabled, this indicates that the CPU has a double floating point
+	  precision unit.
+
 config CPU_HAS_MPU
 	bool
 	help
@@ -513,23 +520,38 @@ config MPU_GAP_FILLING
 	  documentation for more information on how this option is
 	  used.
 
-menuconfig FLOAT
-	bool "Floating point"
-	depends on CPU_HAS_FPU
-	depends on ARM || X86 || ARC
-	help
-	  This option allows threads to use the floating point registers.
-	  By default, only a single thread may use the registers.
+menu "Floating Point Options"
 
-	  Disabling this option means that any thread that uses a
-	  floating point register will get a fatal exception.
+config FPU
+	bool "Enable floating point unit (FPU)"
+	depends on CPU_HAS_FPU
+	depends on ARC || ARM || RISCV || X86
+	help
+	  This option enables the hardware Floating Point Unit (FPU), in order to
+	  support using the floating point registers and instructions.
+
+	  When this option is enabled, by default, threads may use the floating
+	  point registers only in an exclusive manner, and this usually means that
+	  only one thread may perform floating point operations.
+
+	  If it is necessary for multiple threads to perform concurrent floating
+	  point operations, the "FPU register sharing" option must be enabled to
+	  preserve the floating point registers across context switches.
+
+	  Note that this option cannot be selected for the platforms that do not
+	  include a hardware floating point unit; the floating point support for
+	  those platforms is dependent on the availability of the toolchain-
+	  provided software floating point library.
 
 config FP_SHARING
-	bool "Floating point register sharing"
-	depends on FLOAT
+	bool "FPU register sharing"
+	depends on FPU
 	help
-	  This option allows multiple threads to use the floating point
-	  registers.
+	  This option enables preservation of the hardware floating point registers
+	  across context switches to allow multiple threads to perform concurrent
+	  floating point operations.
+
+endmenu
 
 config ARCH
 	string

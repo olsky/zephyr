@@ -16,25 +16,22 @@ import edtlib
 
 doc_mode = os.environ.get('KCONFIG_DOC_MODE') == "1"
 
-dt_defines = {}
 if not doc_mode:
     DTS_POST_CPP = os.environ["DTS_POST_CPP"]
     BINDINGS_DIRS = os.environ.get("DTS_ROOT_BINDINGS")
+    DTC_FLAGS = os.environ.get("EXTRA_DTC_FLAGS")
+
+    if DTC_FLAGS is not None and "-Wno-simple_bus_reg" in DTC_FLAGS:
+        edt_warn_flag = False
+    else:
+        edt_warn_flag = True
 
     # if a board port doesn't use DTS than these might not be set
     if os.path.isfile(DTS_POST_CPP) and BINDINGS_DIRS is not None:
-        edt = edtlib.EDT(DTS_POST_CPP, BINDINGS_DIRS.split("?"))
+        edt = edtlib.EDT(DTS_POST_CPP, BINDINGS_DIRS.split("?"),
+                warn_reg_unit_address_mismatch=edt_warn_flag)
     else:
         edt = None
-
-    # The env. var DEVICETREE_CONF must be set unless we are in doc mode
-    DEVICETREE_CONF = os.environ['DEVICETREE_CONF']
-    if os.path.isfile(DEVICETREE_CONF):
-        with open(DEVICETREE_CONF, 'r', encoding='utf-8') as fd:
-            for line in fd:
-                if '=' in line:
-                    define, val = line.split('=', 1)
-                    dt_defines[define] = val.strip()
 
 
 def _warn(kconf, msg):
@@ -84,6 +81,19 @@ def dt_chosen_enabled(kconf, _, chosen):
     return "y" if node and node.enabled else "n"
 
 
+def dt_chosen_path(kconf, _, chosen):
+    """
+    This function takes a /chosen node property and returns the path
+    to the node in the property value, or the empty string.
+    """
+    if doc_mode or edt is None:
+        return "n"
+
+    node = edt.chosen_node(chosen)
+
+    return node.path if node else ""
+
+
 def dt_nodelabel_enabled(kconf, _, label):
     """
     This function takes a 'label' and returns "y" if we find an "enabled"
@@ -92,11 +102,9 @@ def dt_nodelabel_enabled(kconf, _, label):
     if doc_mode or edt is None:
         return "n"
 
-    for node in edt.nodes:
-        if label in node.labels and node.enabled:
-            return "y"
+    node = edt.label2node.get(label)
 
-    return "n"
+    return "y" if node and node.enabled else "n"
 
 
 def _node_reg_addr(node, index, unit):
@@ -320,8 +328,19 @@ def dt_compat_enabled(kconf, _, compat):
     if doc_mode or edt is None:
         return "n"
 
-    for node in edt.nodes:
-        if compat in node.compats and node.enabled:
+    return "y" if compat in edt.compat2enabled else "n"
+
+
+def dt_compat_on_bus(kconf, _, compat, bus):
+    """
+    This function takes a 'compat' and returns "y" if we find an "enabled"
+    compatible node in the EDT which is on bus 'bus'. It returns "n" otherwise.
+    """
+    if doc_mode or edt is None:
+        return "n"
+
+    for node in edt.compat2enabled[compat]:
+        if node.on_bus is not None and node.on_bus == bus:
             return "y"
 
     return "n"
@@ -343,6 +362,20 @@ def dt_nodelabel_has_compat(kconf, _, label, compat):
     return "n"
 
 
+def dt_nodelabel_path(kconf, _, label):
+    """
+    This function takes a node label (not a label property) and
+    returns the path to the node which has that label, or an empty
+    string if there is no such node.
+    """
+    if doc_mode or edt is None:
+        return ""
+
+    node = edt.label2node.get(label)
+
+    return node.path if node else ""
+
+
 def shields_list_contains(kconf, _, shield):
     """
     Return "n" if cmake environment variable 'SHIELD_AS_LIST' doesn't exist.
@@ -359,8 +392,10 @@ def shields_list_contains(kconf, _, shield):
 
 functions = {
         "dt_compat_enabled": (dt_compat_enabled, 1, 1),
+        "dt_compat_on_bus": (dt_compat_on_bus, 2, 2),
         "dt_chosen_label": (dt_chosen_label, 1, 1),
         "dt_chosen_enabled": (dt_chosen_enabled, 1, 1),
+        "dt_chosen_path": (dt_chosen_path, 1, 1),
         "dt_nodelabel_enabled": (dt_nodelabel_enabled, 1, 1),
         "dt_chosen_reg_addr_int": (dt_chosen_reg, 1, 3),
         "dt_chosen_reg_addr_hex": (dt_chosen_reg, 1, 3),
@@ -374,5 +409,6 @@ functions = {
         "dt_node_int_prop_int": (dt_node_int_prop, 2, 2),
         "dt_node_int_prop_hex": (dt_node_int_prop, 2, 2),
         "dt_nodelabel_has_compat": (dt_nodelabel_has_compat, 2, 2),
+        "dt_nodelabel_path": (dt_nodelabel_path, 1, 1),
         "shields_list_contains": (shields_list_contains, 1, 1),
 }

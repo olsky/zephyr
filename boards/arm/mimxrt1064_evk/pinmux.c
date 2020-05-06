@@ -8,7 +8,7 @@
 #include <fsl_iomuxc.h>
 #include <fsl_gpio.h>
 
-#ifdef CONFIG_ETH_MCUX_0
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(enet))
 static gpio_pin_config_t enet_gpio_config = {
 	.direction = kGPIO_DigitalOutput,
 	.outputLogic = 0,
@@ -23,7 +23,16 @@ static int mimxrt1064_evk_init(struct device *dev)
 	CLOCK_EnableClock(kCLOCK_Iomuxc);
 	CLOCK_EnableClock(kCLOCK_IomuxcSnvs);
 
-#ifndef CONFIG_ETH_MCUX_0
+#if DT_NODE_HAS_PROP(DT_INST(0, focaltech_ft5336), int_gpios)
+	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_11_GPIO1_IO11, 0);
+
+	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B0_11_GPIO1_IO11,
+			    IOMUXC_SW_PAD_CTL_PAD_PKE_MASK |
+			    IOMUXC_SW_PAD_CTL_PAD_SPEED(2) |
+			    IOMUXC_SW_PAD_CTL_PAD_DSE(6));
+#endif
+
+#if !DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(enet))
 	/* LED */
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_09_GPIO1_IO09, 0);
 
@@ -36,7 +45,7 @@ static int mimxrt1064_evk_init(struct device *dev)
 	IOMUXC_SetPinMux(IOMUXC_SNVS_WAKEUP_GPIO5_IO00, 0);
 #endif
 
-#ifdef CONFIG_UART_MCUX_LPUART_1
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(lpuart1))
 	/* LPUART1 TX/RX */
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_12_LPUART1_TX, 0);
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_13_LPUART1_RX, 0);
@@ -52,7 +61,7 @@ static int mimxrt1064_evk_init(struct device *dev)
 			    IOMUXC_SW_PAD_CTL_PAD_DSE(6));
 #endif
 
-#ifdef CONFIG_DISPLAY_MCUX_ELCDIF
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(lcdif))
 	IOMUXC_SetPinMux(IOMUXC_GPIO_B0_00_LCD_CLK, 0);
 	IOMUXC_SetPinMux(IOMUXC_GPIO_B0_01_LCD_ENABLE, 0);
 	IOMUXC_SetPinMux(IOMUXC_GPIO_B0_02_LCD_HSYNC, 0);
@@ -111,7 +120,7 @@ static int mimxrt1064_evk_init(struct device *dev)
 	GPIO_PinInit(GPIO2, 31, &config);
 #endif
 
-#ifdef CONFIG_I2C_1
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(lpi2c1))
 	/* LPI2C1 SCL, SDA */
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_00_LPI2C1_SCL, 1);
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_01_LPI2C1_SDA, 1);
@@ -131,7 +140,7 @@ static int mimxrt1064_evk_init(struct device *dev)
 			    IOMUXC_SW_PAD_CTL_PAD_DSE(6));
 #endif
 
-#ifdef CONFIG_ETH_MCUX_0
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(enet))
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_09_GPIO1_IO09, 0U);
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_10_GPIO1_IO10, 0U);
 	IOMUXC_SetPinMux(IOMUXC_GPIO_B1_04_ENET_RX_DATA00, 0);
@@ -169,11 +178,11 @@ static int mimxrt1064_evk_init(struct device *dev)
 	GPIO_WritePinOutput(GPIO1, 9, 0);
 #endif
 
-#ifdef CONFIG_FLEXPWM2_PWM3
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(flexpwm2_pwm3))
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_09_FLEXPWM2_PWMA03, 0);
 #endif
 
-#ifdef CONFIG_VIDEO_MCUX_CSI
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(csi))
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_04_GPIO1_IO04, 0);
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_04_CSI_PIXCLK, 0);
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_05_CSI_MCLK, 0);
@@ -192,7 +201,7 @@ static int mimxrt1064_evk_init(struct device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_ETH_MCUX_0
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(enet))
 static int mimxrt1064_evk_phy_reset(struct device *dev)
 {
 	/* RESET PHY chip. */
@@ -204,6 +213,6 @@ static int mimxrt1064_evk_phy_reset(struct device *dev)
 #endif
 
 SYS_INIT(mimxrt1064_evk_init, PRE_KERNEL_1, 0);
-#ifdef CONFIG_ETH_MCUX_0
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(enet))
 SYS_INIT(mimxrt1064_evk_phy_reset, PRE_KERNEL_2, 0);
 #endif

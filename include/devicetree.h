@@ -16,14 +16,29 @@
 #ifndef DEVICETREE_H
 #define DEVICETREE_H
 
+#ifdef _LINKER
+/*
+ * Linker scripts include this file too, and autoconf.h isn't
+ * automatically included for those files the way it is for C source
+ * files. Make sure we pull it in before using
+ * CONFIG_LEGACY_DEVICETREE_MACROS in that case.
+ */
+#include <autoconf.h>
+#endif
+
 #include <devicetree_unfixed.h>
+#ifdef CONFIG_LEGACY_DEVICETREE_MACROS
 #include <devicetree_legacy_unfixed.h>
+#endif
 #include <devicetree_fixups.h>
 
 #include <sys/util.h>
 
 /**
  * @brief devicetree.h API
+ * @defgroup devicetree Devicetree
+ * @{
+ * @}
  */
 
 /*
@@ -51,6 +66,7 @@
 
 /**
  * @defgroup devicetree-generic-id Node identifiers
+ * @ingroup devicetree
  * @{
  */
 
@@ -209,6 +225,26 @@
 #define DT_INST(inst, compat) UTIL_CAT(DT_N_INST, DT_DASH(inst, compat))
 
 /**
+ * @brief Get a node identifier for a parent node
+ *
+ * Example devicetree fragment:
+ *
+ *     parent: parent-node {
+ *             child: child-node {
+ *                     ...
+ *             };
+ *     };
+ *
+ * The following generate equivalent node identifiers:
+ *
+ *     DT_NODELABEL(parent)
+ *     DT_PARENT(DT_NODELABEL(child))
+ *
+ * @param node_id node identifier
+ */
+#define DT_PARENT(node_id) UTIL_CAT(node_id, _PARENT)
+
+/**
  * @brief Get a node identifier for a child node
  *
  * Example devicetree fragment:
@@ -240,6 +276,7 @@
 
 /**
  * @defgroup devicetree-generic-prop Property accessors
+ * @ingroup devicetree
  * @{
  */
 
@@ -650,7 +687,8 @@
  * @return 1 if "idx" is a valid register block index,
  *         0 otherwise.
  */
-#define DT_REG_HAS_IDX(node_id, idx) ((idx) < DT_NUM_REGS(node_id))
+#define DT_REG_HAS_IDX(node_id, idx) \
+	IS_ENABLED(DT_CAT(node_id, _REG_IDX_##idx##_EXISTS))
 
 /**
  * @brief Get the base address of the register block at index "idx"
@@ -735,7 +773,8 @@
  * @return 1 if the idx is valid for the interrupt property
  *         0 otherwise.
  */
-#define DT_IRQ_HAS_IDX(node_id, idx) ((idx) < DT_NUM_IRQS(node_id))
+#define DT_IRQ_HAS_IDX(node_id, idx) \
+	IS_ENABLED(DT_CAT(node_id, _IRQ_IDX_##idx##_EXISTS))
 
 /**
  * @brief Get a value within an interrupt specifier at an index
@@ -818,6 +857,7 @@
 
 /**
  * @defgroup devicetree-generic-chosen Chosen nodes
+ * @ingroup devicetree
  * @{
  */
 
@@ -836,6 +876,7 @@
 
 /**
  * @defgroup devicetree-generic-exist Existence checks
+ * @ingroup devicetree
  * @{
  */
 
@@ -844,8 +885,8 @@
  *
  * Example uses:
  *
- *     DT_HAS_NODE(DT_PATH(soc, i2c@12340000))
- *     DT_HAS_NODE(DT_ALIAS(an_alias_name))
+ *     DT_HAS_NODE_STATUS_OKAY(DT_PATH(soc, i2c@12340000))
+ *     DT_HAS_NODE_STATUS_OKAY(DT_ALIAS(an_alias_name))
  *
  * Tests whether a node identifier refers to a node which:
  *
@@ -857,20 +898,20 @@
  * @return 1 if the node identifier refers to a usable node,
  *         0 otherwise.
  */
-#define DT_HAS_NODE(node_id) IS_ENABLED(DT_CAT(node_id, _EXISTS))
+#define DT_HAS_NODE_STATUS_OKAY(node_id) IS_ENABLED(DT_CAT(node_id, _EXISTS))
 
 /**
  * @brief Does the devicetree have any usable nodes with a compatible?
  *
  * Test for whether the devicetree has any usable nodes (as determined by
- * @ref DT_HAS_NODE()) with a given compatible, i.e. if there is at least one
- * "x" for which "DT_HAS_NODE(DT_INST(x, compat))" is 1.
+ * @ref DT_HAS_NODE_STATUS_OKAY()) with a given compatible, i.e. if there is at
+ * least one "x" for which "DT_HAS_NODE_STATUS_OKAY(DT_INST(x, compat))" is 1.
  *
  * @param compat lowercase-and-underscores version of a compatible
  * @return 0 if no nodes of the compatible are available for use,
  *         1 if at least one is enabled and has a matching binding
  */
-#define DT_HAS_COMPAT(compat) DT_HAS_NODE(DT_INST(0, compat))
+#define DT_HAS_COMPAT(compat) DT_HAS_NODE_STATUS_OKAY(DT_INST(0, compat))
 
 /**
  * @brief Get the number of enabled instances for a given compatible
@@ -997,6 +1038,7 @@
 
 /**
  * @defgroup devicetree-generic-bus Bus helpers
+ * @ingroup devicetree
  * @{
  */
 
@@ -1093,6 +1135,7 @@
 
 /**
  * @defgroup devicetree-inst Instance-based devicetree APIs
+ * @ingroup devicetree
  * @{
  */
 
@@ -1350,12 +1393,12 @@
 /**
  * @brief Does the devicetree have a particular instance number?
  *
- * This is equivalent to DT_HAS_NODE(DT_DRV_INST(inst)).
+ * This is equivalent to DT_HAS_NODE_STATUS_OKAY(DT_DRV_INST(inst)).
  * @param inst instance number
  * @return 1 if the devicetree has that numbered instance,
  *         0 otherwise.
  */
-#define DT_HAS_DRV_INST(inst) DT_HAS_NODE(DT_DRV_INST(inst))
+#define DT_HAS_DRV_INST(inst) DT_HAS_NODE_STATUS_OKAY(DT_DRV_INST(inst))
 
 /**
  * @brief Test if a DT_DRV_COMPAT's bus type is a given type
@@ -1474,11 +1517,6 @@
  * @}
  */
 
-#include <devicetree/adc.h>
-#include <devicetree/clocks.h>
-#include <devicetree/gpio.h>
-#include <devicetree/spi.h>
-
 /** @internal pay no attention to the man behind the curtain! */
 #define DT_PATH_INTERNAL(...) \
 	UTIL_CAT(DT_ROOT, MACRO_MAP_CAT(DT_S_PREFIX, __VA_ARGS__))
@@ -1490,5 +1528,14 @@
 #define DT_DASH(...) MACRO_MAP_CAT(DT_DASH_PREFIX, __VA_ARGS__)
 /** @internal helper for DT_DASH(): prepends _ to a name */
 #define DT_DASH_PREFIX(name) _##name
+
+/* have these last so the have access to all previously defined macros */
+#include <devicetree/adc.h>
+#include <devicetree/clocks.h>
+#include <devicetree/gpio.h>
+#include <devicetree/spi.h>
+#include <devicetree/dma.h>
+#include <devicetree/pwms.h>
+#include <devicetree/zephyr.h>
 
 #endif /* DEVICETREE_H */

@@ -48,15 +48,19 @@ def main():
         write_top_comment(edt)
 
         for node in sorted(edt.nodes, key=lambda node: node.dep_ordinal):
-            node.z_path_id = "N_" + "_".join(
-                f"S_{str2ident(name)}" for name in node.path[1:].split("/"))
+            node.z_path_id = node_z_path_id(node)
             write_node_comment(node)
 
+            if node.parent is not None:
+                out_comment(f"Node parent ({node.parent.path}) identifier:")
+                out_dt_define(f"{node.z_path_id}_PARENT",
+                              f"DT_{node.parent.z_path_id}")
+
             if not node.enabled:
-                out_comment("No macros: node is disabled")
+                out_comment("No node macros: node is disabled")
                 continue
             if not node.matching_compat:
-                out_comment("No macros: node has no matching binding")
+                out_comment("No node macros: node has no matching binding")
                 continue
 
             write_idents_and_existence(node)
@@ -67,6 +71,24 @@ def main():
         write_chosen(edt)
         write_global_compat_info(edt)
 
+
+def node_z_path_id(node):
+    # Return the node specific bit of the node's path identifier:
+    #
+    # - the root node's path "/" has path identifier "N"
+    # - "/foo" has "N_S_foo"
+    # - "/foo/bar" has "N_S_foo_S_bar"
+    # - "/foo/bar@123" has "N_S_foo_S_bar_123"
+    #
+    # This is used throughout this file to generate macros related to
+    # the node.
+
+    components = ["N"]
+    if node.parent is not None:
+        components.extend(f"S_{str2ident(component)}" for component in
+                          node.path.split("/")[1:])
+
+    return "_".join(components)
 
 def parse_args():
     # Returns parsed command-line arguments
@@ -122,17 +144,15 @@ def write_node_comment(node):
     # Writes a comment describing 'node' to the header and configuration file
 
     s = f"""\
-Devicetree node:
-  {node.path}
+Devicetree node: {node.path}
+
+Node's generated path identifier: DT_{node.z_path_id}
 """
 
     if node.matching_compat:
         s += f"""
 Binding (compatible = {node.matching_compat}):
   {relativize(node.binding_path)}
-"""
-        s += f"""
-Node's path identifier in this file: {node.z_path_id}
 """
 
     s += f"\nDependency Ordinal: {node.dep_ordinal}\n"
@@ -239,6 +259,7 @@ def write_regs(node):
         idx_vals.append((f"{path_id}_REG_NUM", len(node.regs)))
 
     for i, reg in enumerate(node.regs):
+        idx_vals.append((f"{path_id}_REG_IDX_{i}_EXISTS", 1))
         if reg.addr is not None:
             idx_macro = f"{path_id}_REG_IDX_{i}_VAL_ADDRESS"
             idx_vals.append((idx_macro,
@@ -312,6 +333,7 @@ def write_interrupts(node):
                     cell_value = map_arm_gic_irq_type(irq, cell_value)
                 cell_value = encode_zephyr_multi_level_irq(irq, cell_value)
 
+            idx_vals.append((f"{path_id}_IRQ_IDX_{i}_EXISTS", 1))
             idx_macro = f"{path_id}_IRQ_IDX_{i}_VAL_{name}"
             idx_vals.append((idx_macro, cell_value))
             idx_vals.append((idx_macro + "_EXISTS", 1))
@@ -484,10 +506,14 @@ def controller_and_data_macros(entry, i, macro):
         return ret
 
     name = str2ident(entry.name)
+    # DT_N_<node-id>_P_<prop-id>_IDX_<i>_EXISTS
+    ret[f"{macro}_IDX_{i}_EXISTS"] = 1
     # DT_N_<node-id>_P_<prop-id>_IDX_<i>_NAME
     ret[f"{macro}_IDX_{i}_NAME"] = quote_str(entry.name)
     # DT_N_<node-id>_P_<prop-id>_NAME_<NAME>_PH
     ret[f"{macro}_NAME_{name}_PH"] = f"DT_{entry.controller.z_path_id}"
+    # DT_N_<node-id>_P_<prop-id>_NAME_<NAME>_EXISTS
+    ret[f"{macro}_NAME_{name}_EXISTS"] = 1
     # DT_N_<node-id>_P_<prop-id>_NAME_<NAME>_VAL_<VAL>
     for cell, val in data.items():
         cell_ident = str2ident(cell)

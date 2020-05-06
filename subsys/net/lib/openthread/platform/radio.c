@@ -281,6 +281,8 @@ static void openthread_handle_received_frame(otInstance *instance,
 	recv_frame.mChannel = platformRadioChannelGet(instance);
 	recv_frame.mInfo.mRxInfo.mLqi = net_pkt_ieee802154_lqi(pkt);
 	recv_frame.mInfo.mRxInfo.mRssi = net_pkt_ieee802154_rssi(pkt);
+	recv_frame.mInfo.mRxInfo.mAckedWithFramePending =
+						net_pkt_ieee802154_ack_fpb(pkt);
 
 #if defined(CONFIG_NET_PKT_TIMESTAMP)
 	struct net_ptp_time *time = net_pkt_timestamp(pkt);
@@ -639,7 +641,8 @@ void otPlatRadioEnableSrcMatch(otInstance *aInstance, bool aEnable)
 	ARG_UNUSED(aInstance);
 
 	struct ieee802154_config config = {
-		.auto_ack_fpb.enabled = aEnable
+		.auto_ack_fpb.enabled = aEnable,
+		.auto_ack_fpb.mode = IEEE802154_FPB_ADDR_MATCH_THREAD,
 	};
 
 	(void)radio_api->configure(radio_dev, IEEE802154_CONFIG_AUTO_ACK_FPB,

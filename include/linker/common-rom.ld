@@ -9,7 +9,7 @@
 		 * instruction.  See include/sw_isr_table.h.
 		 */
 		. = ALIGN(CONFIG_ARCH_SW_ISR_TABLE_ALIGN);
-		*(SW_ISR_TABLE)
+		*(_SW_ISR_TABLE_SECTION_NAME)
 	} GROUP_LINK_IN(ROMABLE_REGION)
 #endif
 #ifdef CONFIG_CPLUSPLUS
@@ -145,6 +145,13 @@
 		__log_backends_start = .;
 		KEEP(*("._log_backend.*"));
 		__log_backends_end = .;
+	} GROUP_LINK_IN(ROMABLE_REGION)
+
+	SECTION_DATA_PROLOGUE(shell_sections,,)
+	{
+		_shell_list_start = .;
+		KEEP(*(SORT(._shell.static.*)));
+		_shell_list_end = .;
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
 	SECTION_DATA_PROLOGUE(shell_root_cmds_sections,,)

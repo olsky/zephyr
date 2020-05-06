@@ -26,7 +26,7 @@ else()
   message(STATUS "West: not found")
 endif()
 
-find_package(PythonInterp 3.6 REQUIRED)
+include(${ZEPHYR_BASE}/cmake/python.cmake)
 set(DOXYGEN_SKIP_DOT True)
 find_package(Doxygen REQUIRED)
 find_package(LATEX)
@@ -346,6 +346,12 @@ add_custom_target(
   htmldocs
 )
 add_dependencies(htmldocs html)
+
+
+add_custom_target(
+  doxygen
+)
+add_dependencies(doxygen doxy_real_modified_times)
 
 add_dependencies(latex content doxy_real_modified_times kconfig)
 

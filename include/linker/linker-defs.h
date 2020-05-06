@@ -24,6 +24,17 @@
 #include <sys/util.h>
 #include <offsets.h>
 
+/* We need to dummy out DT_HAS_NODE_STATUS_OKAY when building the unittests
+ * since including devicetree.h would require generating dummy header files
+ * to match what the generate creates, so its easier to just dummy out
+ * DT_HAS_NODE_STATUS_OKAY.
+ */
+#ifdef ZTEST_UNITTEST
+#define DT_HAS_NODE_STATUS_OKAY(x) 0
+#else
+#include <devicetree.h>
+#endif
+
 #ifdef _LINKER
 
 
@@ -205,7 +216,7 @@ extern char __gcov_bss_size[];
 /* end address of image, used by newlib for the heap */
 extern char _end[];
 
-#ifdef DT_CCM_BASE_ADDRESS
+#if DT_HAS_NODE_STATUS_OKAY(DT_CHOSEN(zephyr_ccm))
 extern char __ccm_data_rom_start[];
 extern char __ccm_start[];
 extern char __ccm_data_start[];
@@ -215,9 +226,9 @@ extern char __ccm_bss_end[];
 extern char __ccm_noinit_start[];
 extern char __ccm_noinit_end[];
 extern char __ccm_end[];
-#endif /* DT_CCM_BASE_ADDRESS */
+#endif
 
-#ifdef DT_DTCM_BASE_ADDRESS
+#if DT_HAS_NODE_STATUS_OKAY(DT_CHOSEN(zephyr_dtcm))
 extern char __dtcm_data_start[];
 extern char __dtcm_data_end[];
 extern char __dtcm_bss_start[];
@@ -227,7 +238,7 @@ extern char __dtcm_noinit_end[];
 extern char __dtcm_data_rom_start[];
 extern char __dtcm_start[];
 extern char __dtcm_end[];
-#endif /* DT_DTCM_BASE_ADDRESS */
+#endif
 
 /* Used by the Security Attribution Unit to configure the
  * Non-Secure Callable region.

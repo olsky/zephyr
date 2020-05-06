@@ -27,18 +27,22 @@ node-macro =/ %s"DT_N" path-id %s"_EXISTS"
 node-macro =/ %s"DT_N" path-id %s"_BUS" ["_" dt-name]
 ; The reg property is special and has its own macros.
 node-macro =/ %s"DT_N" path-id %s"_REG_NUM"
+node-macro =/ %s"DT_N" path-id %s"_REG_IDX_" DIGIT "_EXISTS"
 node-macro =/ %s"DT_N" path-id %s"_REG_IDX_" DIGIT
               %s"_VAL_" ( %s"ADDRESS" / %s"SIZE")
 node-macro =/ %s"DT_N" path-id %s"_REG_NAME_" dt-name
               %s"_VAL_" ( %s"ADDRESS" / %s"SIZE")
 ; The interrupts property is also special.
 node-macro =/ %s"DT_N" path-id %s"_IRQ_NUM"
+node-macro =/ %s"DT_N" path-id %s"_IRQ_IDX_" DIGIT "_EXISTS"
 node-macro =/ %s"DT_N" path-id %s"_IRQ_IDX_" DIGIT
               %s"_VAL_" dt-name [ %s"_EXISTS" ]
 node-macro =/ %s"DT_N" path-id %s"_IRQ_NAME_" dt-name
               %s"_VAL_" dt-name [ %s"_EXISTS" ]
 ; Macros are generated for each of the node's compatibles.
 node-macro =/ %s"DT_N" path-id %s"_COMPAT_MATCHES_" dt-name
+; The node identifier for the node's parent in the devicetree.
+node-macro =/ %s"DT_N" path-id %s"_PARENT"
 
 ; --------------------------------------------------------------------
 ; property-macro: a macro related to a node property
@@ -102,10 +106,11 @@ prop-id = dt-name
 ; - with array types (uint8-array, phandle-array, etc.)
 ; - with "enum:" in their bindings
 ; - zephyr device API specific macros for phandle-arrays
+; - phandle specifier names ("foo-names")
 ;
 ; Here are some examples:
 ;
-; - _EXISTS: property existence flag
+; - _EXISTS: property, index or name existence flag
 ; - _SIZE: logical property length
 ; - _IDX_<i>: values of individual array elements
 ; - _IDX_<DIGIT>_VAL_<dt-name>: values of individual specifier

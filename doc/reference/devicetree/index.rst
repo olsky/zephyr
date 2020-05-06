@@ -21,7 +21,7 @@ Node identifiers
 
 You can use node identifiers for devicetree nodes which are enabled (i.e. have
 ``status = "okay";`` properties) and have matching compatibles. This can be
-tested with :c:func:`DT_HAS_NODE()`.
+tested with :c:func:`DT_HAS_NODE_STATUS_OKAY()`.
 
 .. doxygengroup:: devicetree-generic-id
    :project: Zephyr
@@ -95,4 +95,13 @@ SPI
 ===
 
 .. doxygengroup:: devicetree-spi
+   :project: Zephyr
+
+Zephyr specific /chosen nodes
+=============================
+
+These are conveniences for commonly used zephyr-specific properties of the
+``/chosen`` node. They may have fallbacks from :file:`dts_fixup.h` files.
+
+.. doxygengroup:: devicetree-zephyr
    :project: Zephyr

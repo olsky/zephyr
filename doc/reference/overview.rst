@@ -99,6 +99,11 @@ current :ref:`stability level <api_lifecycle>`.
      - 1.5
      - 2.0
 
+   * - :ref:`dac_api`
+     - Experimental
+     - 2.3
+     - 2.3
+
    * - :ref:`eeprom_api`
      - Experimental
      - 2.1
@@ -238,6 +243,11 @@ current :ref:`stability level <api_lifecycle>`.
      - Stable
      - 1.11
      - 2.1
+
+   * - :ref:`stream_flash`
+     - Experimental
+     - 2.3
+     - 2.3
 
    * - :ref:`flash_map_api`
      - Stable

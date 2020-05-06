@@ -32,6 +32,7 @@
 #include "foundation.h"
 #include "proxy.h"
 #include "settings.h"
+#include "lpn.h"
 
 /* Tracking of what storage changes are pending for App and Net Keys. We
  * track this in a separate array here instead of within the respective
@@ -1092,9 +1093,20 @@ static void commit_mod(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
 	if (mod->pub && mod->pub->update &&
 	    mod->pub->addr != BT_MESH_ADDR_UNASSIGNED) {
 		s32_t ms = bt_mesh_model_pub_period_get(mod);
-		if (ms) {
+
+		if (ms > 0) {
 			BT_DBG("Starting publish timer (period %u ms)", ms);
-			k_delayed_work_submit(&mod->pub->timer, ms);
+			k_delayed_work_submit(&mod->pub->timer, K_MSEC(ms));
+		}
+	}
+
+	if (!IS_ENABLED(CONFIG_BT_MESH_LOW_POWER)) {
+		return;
+	}
+
+	for (int i = 0; i < ARRAY_SIZE(mod->groups); i++) {
+		if (mod->groups[i] != BT_MESH_ADDR_UNASSIGNED) {
+			bt_mesh_lpn_group_add(mod->groups[i]);
 		}
 	}
 }
@@ -1177,30 +1189,30 @@ SETTINGS_STATIC_HANDLER_DEFINE(bt_mesh, "bt/mesh", NULL, mesh_set, mesh_commit,
 
 static void schedule_store(int flag)
 {
-	s32_t timeout, remaining;
+	s32_t timeout_ms, remaining;
 
 	atomic_set_bit(bt_mesh.flags, flag);
 
 	if (atomic_get(bt_mesh.flags) & NO_WAIT_PENDING_BITS) {
-		timeout = K_NO_WAIT;
+		timeout_ms = 0;
 	} else if (atomic_test_bit(bt_mesh.flags, BT_MESH_RPL_PENDING) &&
 		   (!(atomic_get(bt_mesh.flags) & GENERIC_PENDING_BITS) ||
 		    (CONFIG_BT_MESH_RPL_STORE_TIMEOUT <
 		     CONFIG_BT_MESH_STORE_TIMEOUT))) {
-		timeout = K_SECONDS(CONFIG_BT_MESH_RPL_STORE_TIMEOUT);
+		timeout_ms = CONFIG_BT_MESH_RPL_STORE_TIMEOUT * MSEC_PER_SEC;
 	} else {
-		timeout = K_SECONDS(CONFIG_BT_MESH_STORE_TIMEOUT);
+		timeout_ms = CONFIG_BT_MESH_STORE_TIMEOUT * MSEC_PER_SEC;
 	}
 
 	remaining = k_delayed_work_remaining_get(&pending_store);
-	if (remaining && remaining < timeout) {
+	if ((remaining > 0) && remaining < timeout_ms) {
 		BT_DBG("Not rescheduling due to existing earlier deadline");
 		return;
 	}
 
-	BT_DBG("Waiting %d seconds", timeout / MSEC_PER_SEC);
+	BT_DBG("Waiting %d seconds", timeout_ms / MSEC_PER_SEC);
 
-	k_delayed_work_submit(&pending_store, timeout);
+	k_delayed_work_submit(&pending_store, K_MSEC(timeout_ms));
 }
 
 static void clear_iv(void)
