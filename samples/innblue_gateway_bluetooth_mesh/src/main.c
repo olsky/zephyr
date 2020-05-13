@@ -23,7 +23,7 @@ LOG_MODULE_REGISTER(mesh_gateway, 3);
 #define LED3		DT_ALIAS_LED3_GPIOS_PIN
 #define LED4		DT_ALIAS_LED4_GPIOS_PIN
 #define LED5		DT_ALIAS_LED5_GPIOS_PIN
-#define SLEEP_TIME	50
+#define SLEEP_TIME	K_MSEC(50)
 
 void ui_blink(const char * controller, int led_pin, int times)
 {
@@ -131,11 +131,11 @@ void init_modem(void)
 
 	printk("init_modem > sim8xx > power Off\n");
 	gpio_pin_set(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, 0);
-	k_sleep(500);
+	k_sleep(K_MSEC(500));
 
 	printk("init_modem > sim8xx > power ON\n");
 	gpio_pin_set(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, 1);
-	k_sleep(500);
+	k_sleep(K_MSEC(500));
 
 	gpio_pin_configure(device_get_binding(DT_INST_5_ST_STM32_GPIO_LABEL), 6, GPIO_OUTPUT);
 
