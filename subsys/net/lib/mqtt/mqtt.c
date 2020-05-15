@@ -617,7 +617,10 @@ int mqtt_live(struct mqtt_client *client)
 	elapsed_time = mqtt_elapsed_time_in_ms_get(
 				client->internal.last_activity);
 	if ((client->keepalive > 0) &&
-	    (elapsed_time >= (client->keepalive * 1000))) {
+	// divide keepalive by two to be on the safe side, 
+	// do not wait till the last moment to ping 
+	// or broker might drop the connection
+	    (elapsed_time >= (client->keepalive / 2 * 1000))) {
 		err_code = mqtt_ping(client);
 		ping_sent = true;
 	}
