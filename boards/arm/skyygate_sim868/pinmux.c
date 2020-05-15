@@ -65,35 +65,30 @@ static int pwr_ctrl_init(struct device *dev)
 {
 	/* Now that the pins are setup, we need to power up the modem.
 	   This requires us to configure both PC0 / PE6 as output and set
-       them high.
+	   them high.
 
 	   Note that eventually it might be good to put this in a different function. */
 
 	/* Configure PC0 / PE6 as output. */
-	gpio_pin_configure(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, GPIO_OUTPUT);
-	gpio_pin_configure(device_get_binding(DT_INST_5_ST_STM32_GPIO_LABEL), 6, GPIO_OUTPUT);
+	struct device *power_pin_pc0 = device_get_binding(DT_ST_STM32_GPIO_48000800_LABEL);
+	struct device *gsm_pin_pe6 = device_get_binding(DT_ST_STM32_GPIO_48001000_LABEL);
+	struct device *gnss_pin = device_get_binding(DT_ST_STM32_GPIO_48001C00_LABEL);
+
+	gpio_pin_configure(power_pin_pc0, 0, GPIO_OUTPUT);
+	gpio_pin_configure(gsm_pin_pe6, 6, GPIO_OUTPUT);
+	gpio_pin_configure(gnss_pin, 1, GPIO_OUTPUT);
 
 	/* PC0 Low -> Wait -> High -> Wait. */
 	printk("init_modem > sim8xx > power Off\n");
-	gpio_pin_set(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, 0);
-	k_busy_wait(500000);
-	printk("init_modem > sim8xx > power ON\n");
-	gpio_pin_set(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, 1);
-	k_busy_wait(2000000);
-
-	/* PC6 High -> Wait. */
+	gpio_pin_set(power_pin_pc0, 0, 0);
+	k_sleep(K_SECONDS(1));
+	/* PC6 High  */
 	printk("init_modem > sim8xx > gsm ON\n");
-	gpio_pin_set(device_get_binding(DT_INST_5_ST_STM32_GPIO_LABEL), 6, 1);
-	k_busy_wait(2000000);
-
-	gpio_pin_configure(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 1, GPIO_OUTPUT);
+	gpio_pin_set(gsm_pin_pe6, 6, 1);
 	printk("init_modem > sim8xx > gnss ON\n");
-	gpio_pin_set(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 1, 1);
-
-	/* Wait 5secs before moving forward. This will give the modem firmware enough time to boot and run. */
-	printk("Sleeping for 5secsss\n");
-	k_busy_wait(5000000);
-	printk("Waking up from for 5secsss\n");
+	gpio_pin_set(gnss_pin, 1, 1);
+	printk("init_modem > sim8xx > power ON\n");
+	gpio_pin_set(power_pin_pc0, 0, 1);
 
 	return 0;
 }
