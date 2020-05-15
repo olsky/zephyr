@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
+#include <stdlib.h> 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(modem_gsm, CONFIG_MODEM_LOG_LEVEL);
 
@@ -183,6 +183,28 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_imei)
 }
 #endif /* CONFIG_MODEM_SHELL */
 
+#ifndef CONFIG_MODEM_GSM_PPP_MINIMUM_RSSI
+#define CONFIG_MODEM_GSM_PPP_MINIMUM_RSSI 0
+#endif
+MODEM_CMD_DEFINE(on_cmd_at_rssi)
+{
+	if (argc < 2) {
+		modem_cmd_handler_set_error(data, -EINVAL);
+		k_sem_give(&gsm.sem_response);
+		return 0;
+	}
+	
+	LOG_INF("RSSI %s, %s", argv[0], argv[1]);
+
+	if (atoi(argv[0]) < CONFIG_MODEM_GSM_PPP_MINIMUM_RSSI)
+		modem_cmd_handler_set_error(data, -EINVAL);
+	else
+		modem_cmd_handler_set_error(data, 0);
+	
+	k_sem_give(&gsm.sem_response);
+	return 0;
+}
+
 static struct setup_cmd setup_cmds[] = {
 	/* no echo */
 	SETUP_CMD_NOHANDLE("ATE0"),
@@ -207,6 +229,7 @@ static struct setup_cmd setup_cmds[] = {
 };
 
 static struct setup_cmd connect_cmds[] = {
+	SETUP_CMD("AT+CSQ", "+CSQ: ", on_cmd_at_rssi, 2U, ","),
 	/* connect to network */
 	SETUP_CMD_NOHANDLE("ATD*99#"),
 };

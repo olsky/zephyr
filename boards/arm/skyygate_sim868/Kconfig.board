@@ -6,3 +6,13 @@
 config BOARD_SKYYGATE_SIM868
 	bool "InnBlue Skyygate SIM868 board"
 	depends on SOC_STM32L475XX
+
+config MODEM_GSM_PPP_MINIMUM_RSSI
+	int "Minimum RSSI"
+	range 0 99
+	default 10
+	depends on BOARD_SKYYGATE_SIM868 && MODEM_GSM_PPP
+	help 
+		The minimum RSSI to be measured by GSM modem before the network is initialized.
+		The network won't be started until the RSSI is reached. For details see AT+CSQ
+		modem command.
