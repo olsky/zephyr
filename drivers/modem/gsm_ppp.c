@@ -275,7 +275,14 @@ static void gsm_finalize_connection(struct gsm_modem *gsm)
 		}
 	}
 
-	(void)gsm_setup_mccmno(gsm);
+	ret = gsm_setup_mccmno(gsm);
+	if (ret < 0) {
+		LOG_DBG("modem setup mcc mno returned %d, %s",
+			ret, "retrying...");
+		(void)k_delayed_work_submit(&gsm->gsm_configure_work,
+					    K_SECONDS(1));
+		return;
+	}
 
 	ret = modem_cmd_handler_setup_cmds(&gsm->context.iface,
 					   &gsm->context.cmd_handler,
