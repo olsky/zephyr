@@ -458,8 +458,8 @@ static int process_mqtt_and_sleep(struct mqtt_client *client, int timeout)
 		wait(remaining);
 
 		rc = mqtt_live(client);
-		if (rc != 0) {
-			PRINT_RESULT("mqtt_live", rc);
+		if (rc != 0 && rc != -EAGAIN /* Zephyr changed API in v2.2 */) {
+			PRINT_RESULT("mqtt_live failed", rc);
 			return rc;
 		}
 
