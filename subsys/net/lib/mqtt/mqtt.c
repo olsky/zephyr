@@ -617,7 +617,7 @@ int mqtt_live(struct mqtt_client *client)
 	elapsed_time = mqtt_elapsed_time_in_ms_get(
 				client->internal.last_activity);
 	if ((client->keepalive > 0) &&
-	    (elapsed_time >= (client->keepalive * 1000))) {
+	    (elapsed_time >= (client->keepalive / 2 * 1000))) {
 		err_code = mqtt_ping(client);
 		ping_sent = true;
 	}
