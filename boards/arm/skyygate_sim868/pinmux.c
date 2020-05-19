@@ -61,7 +61,7 @@ static int pinmux_stm32_init(struct device *port)
 	return 0;
 }
 
-static int pwr_ctrl_init(struct device *dev)
+static int sim868_init(struct device *dev)
 {
 	/* Now that the pins are setup, we need to power up the modem.
 	   This requires us to configure both PC0 / PE6 as output and set
@@ -97,5 +97,5 @@ SYS_INIT(pinmux_stm32_init, PRE_KERNEL_1,
 	     CONFIG_PINMUX_STM32_DEVICE_INITIALIZATION_PRIORITY);
 
 // after 45 which is pinmux prio 
-DEVICE_INIT(pwr_ctrl_init, "", pwr_ctrl_init, NULL, NULL,
+DEVICE_INIT(sim8xx_modem, "sim8xx_modem", sim868_init, NULL, NULL,
 			POST_KERNEL, 46);
