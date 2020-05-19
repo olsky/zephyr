@@ -19,11 +19,10 @@ LOG_MODULE_REGISTER(mqtt_publisher, LOG_LEVEL_DBG);
 #include "config.h"
 #include "mqtt_publisher.h"
 
-
-#define MAX_IMEI_LEN (30)
-#define CLIENT_ID_LEN (MAX_IMEI_LEN + 6)
-static u8_t client_id_buf[CLIENT_ID_LEN+1];
-static u8_t publish_topic[MAX_IMEI_LEN+128];
+/* MQTT-3.1.3-5 spec */
+#define CLIENT_ID_MAX_LENGTH (23) 
+static u8_t client_id_buf[CLIENT_ID_MAX_LENGTH+1];
+static u8_t publish_topic[256];
 
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[APP_MQTT_BUFFER_SIZE];
@@ -127,7 +126,7 @@ static void wait(int timeout)
 {
 	if (nfds > 0) {
 		if (poll(fds, nfds, timeout) < 0) {
-			LOG_ERR("poll error: %d", errno);
+			printk("poll error: %d", errno);
 		}
 	}
 }
@@ -241,7 +240,10 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 
 		puback.message_id = evt->param.publish.message_id;
 		mqtt_publish_qos1_ack(&client_ctx, &puback);
+		break;
 
+	case MQTT_EVT_PINGRESP:
+		LOG_INF("MQTT ping response received."); 
 		break;
 
 	default:
@@ -305,17 +307,45 @@ static void broker_init(void)
 #endif
 }
 
-static int init_client_id(void)
+static int init_client_id(const char *client_id) 
 {
-	const char* imei = "0123456789";
+	if (!client_id) {
+		printk("MQTT: provide client_id.");
+		return EINVAL;
+	}
+	
+	const size_t len = strlen(client_id);
+	if (len < 1 || len > CLIENT_ID_MAX_LENGTH) {
+		printk("MQTT: client_id is either blank or over "  
+			STRINGIFY(CLIENT_ID_MAX_LENGTH) 
+			" symbols, see MQTT Spec MQTT-3.1.3-5.");
+		return EINVAL;
+	}
 
-	printk("innblue > %s [%d] > enter\n", __func__, __LINE__);
+	for (const char *c = client_id; *c; c++)
+		if ((*c < '0' || *c > '9') && 
+			(*c < 'a' || *c > 'z') && 
+			(*c < 'A' || *c > 'Z')) {
+			printk("MQTT: client_id contains illegal characters, "
+				"see MQTT Spec MQTT-3.1.3-5.");
+			return  EINVAL;	
+		}
+		
+	strncpy(client_id_buf, client_id, sizeof client_id_buf);
 
-	// FIXME: This code needs to be updated to get the IMEI.
-
-	snprintf(publish_topic, sizeof(publish_topic),
-		     CONFIG_MQTT_PUB_TOPIC, imei);
+	if (sizeof(publish_topic) <= snprintf(publish_topic, 
+			sizeof(publish_topic),
+			CONFIG_MQTT_PUB_TOPIC, 
+			client_id)) {
+		printk("MQTT: publish topic is too long.");  
+		return EINVAL;
+	}
+		
 	printk("\tpub-topic for this gateway: %s\n", publish_topic);
+	printk("innblue > %s [%d] > mqtt client id: %s\n",
+		__func__,
+		__LINE__,
+		client_id_buf);
 
 	return 0;
 }
@@ -433,7 +463,7 @@ static int try_to_connect(struct mqtt_client *client)
 
 		prepare_fds(client);
 
-		wait(APP_SLEEP_MSECS);
+		wait(3000);
 		mqtt_input(client);
 
 		if (!connected) {
@@ -478,11 +508,11 @@ static int process_mqtt_and_sleep(struct mqtt_client *client, int timeout)
 #define SUCCESS_OR_RETURN(rc) { if (rc != 0) { return rc; } }
 #define SUCCESS_OR_BREAK(rc) { if (rc != 0) { return; } }
 
-static bool initialize(void)
+static bool initialize(const char* client_id)
 {
 	LOG_INF("initialize mqtt...");
 	// get mqtt client id from -->
-	return 0 == init_client_id();
+	return 0 == init_client_id(client_id);
 }
 
 static bool process_input()
@@ -497,11 +527,11 @@ static bool process_input()
 #endif
 		LOG_INF("attempting to connect: ");
 		rc = try_to_connect(&client_ctx);
-		PRINT_RESULT("try_to_connect", rc);
 		if (0 != rc) {
-			LOG_INF("could not connect to mqtt!!!");
+			PRINT_RESULT("Unable to connect to MQTT: ", rc);
 			return false;
 		}
+		LOG_INF("Successfully connected to MQTT.");
 		// connected here, do subscribe
 		if (!mqtt_sub())
 			return false;
