@@ -7,5 +7,6 @@ target_sources(app PRIVATE
 	src/main.c
 	src/mqtt_publisher.c
 	src/uart_mqtt_bridge.c
-	src/board_lights.c)
+	src/board_lights.c
+	src/net_mngr.c)
 zephyr_include_directories(src)
