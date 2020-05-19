@@ -54,7 +54,8 @@
 #define APP_TX_RX_TIMEOUT       300
 #define APP_NET_INIT_TIMEOUT    10000
 
-#define APP_CONNECT_TRIES	15
+// debug
+#define APP_CONNECT_TRIES	1
 
 #define APP_MAX_ITERATIONS	100
 

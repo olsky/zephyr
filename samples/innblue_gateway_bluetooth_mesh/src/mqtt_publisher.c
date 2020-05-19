@@ -8,9 +8,11 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(mqtt_publisher, LOG_LEVEL_DBG);
 
+#include <device.h>
 #include <zephyr.h>
 #include <net/socket.h>
 #include <net/mqtt.h>
+#include <net/ppp.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -19,11 +21,10 @@ LOG_MODULE_REGISTER(mqtt_publisher, LOG_LEVEL_DBG);
 #include "config.h"
 #include "mqtt_publisher.h"
 
-
-#define MAX_IMEI_LEN (30)
-#define CLIENT_ID_LEN (MAX_IMEI_LEN + 6)
-static u8_t client_id_buf[CLIENT_ID_LEN+1];
-static u8_t publish_topic[MAX_IMEI_LEN+128];
+/* MQTT-3.1.3-5 spec */
+#define CLIENT_ID_MAX_LENGTH (23) 
+static u8_t client_id_buf[CLIENT_ID_MAX_LENGTH+1];
+static u8_t publish_topic[256];
 
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[APP_MQTT_BUFFER_SIZE];
@@ -127,7 +128,7 @@ static void wait(int timeout)
 {
 	if (nfds > 0) {
 		if (poll(fds, nfds, timeout) < 0) {
-			LOG_ERR("poll error: %d", errno);
+			printk("poll error: %d", errno);
 		}
 	}
 }
@@ -241,7 +242,10 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 
 		puback.message_id = evt->param.publish.message_id;
 		mqtt_publish_qos1_ack(&client_ctx, &puback);
+		break;
 
+	case MQTT_EVT_PINGRESP:
+		LOG_INF("MQTT ping response received."); 
 		break;
 
 	default:
@@ -305,17 +309,45 @@ static void broker_init(void)
 #endif
 }
 
-static int init_client_id(void)
+static int init_client_id(const char *client_id) 
 {
-	const char* imei = "0123456789";
+	if (!client_id) {
+		printk("MQTT: provide client_id.");
+		return EINVAL;
+	}
+	
+	const size_t len = strlen(client_id);
+	if (len < 1 || len > CLIENT_ID_MAX_LENGTH) {
+		printk("MQTT: client_id is either blank or over "  
+			STRINGIFY(CLIENT_ID_MAX_LENGTH) 
+			" symbols, see MQTT Spec MQTT-3.1.3-5.");
+		return EINVAL;
+	}
 
-	printk("innblue > %s [%d] > enter\n", __func__, __LINE__);
+	for (const char *c = client_id; *c; c++)
+		if ((*c < '0' || *c > '9') && 
+			(*c < 'a' || *c > 'z') && 
+			(*c < 'A' || *c > 'Z')) {
+			printk("MQTT: client_id contains illegal characters, "
+				"see MQTT Spec MQTT-3.1.3-5.");
+			return  EINVAL;	
+		}
+		
+	strncpy(client_id_buf, client_id, sizeof client_id_buf);
 
-	// FIXME: This code needs to be updated to get the IMEI.
-
-	snprintf(publish_topic, sizeof(publish_topic),
-		     CONFIG_MQTT_PUB_TOPIC, imei);
+	if (sizeof(publish_topic) <= snprintf(publish_topic, 
+			sizeof(publish_topic),
+			CONFIG_MQTT_PUB_TOPIC, 
+			client_id)) {
+		printk("MQTT: publish topic is too long.");  
+		return EINVAL;
+	}
+		
 	printk("\tpub-topic for this gateway: %s\n", publish_topic);
+	printk("innblue > %s [%d] > mqtt client id: %s\n",
+		__func__,
+		__LINE__,
+		client_id_buf);
 
 	return 0;
 }
@@ -433,7 +465,8 @@ static int try_to_connect(struct mqtt_client *client)
 
 		prepare_fds(client);
 
-		wait(APP_SLEEP_MSECS);
+		// debug, seems the longer timeout helps
+		wait(3000);
 		mqtt_input(client);
 
 		if (!connected) {
@@ -478,30 +511,133 @@ static int process_mqtt_and_sleep(struct mqtt_client *client, int timeout)
 #define SUCCESS_OR_RETURN(rc) { if (rc != 0) { return rc; } }
 #define SUCCESS_OR_BREAK(rc) { if (rc != 0) { return; } }
 
-static bool initialize(void)
+static bool initialize(const char* client_id)
 {
 	LOG_INF("initialize mqtt...");
 	// get mqtt client id from -->
-	return 0 == init_client_id();
+	return 0 == init_client_id(client_id);
+}
+
+
+extern struct device __device_init_start[];
+extern struct device __device_init_end[];
+static struct device *device_get_binding_any (const char *name)
+{
+	struct device *info;
+
+	for (info = __device_init_start; info != __device_init_end; info++) {
+		if (info->config->name == name)
+			return info;
+	}
+
+	for (info = __device_init_start; info != __device_init_end; info++) {
+		if (strcmp(name, info->config->name) == 0)
+			return info;
+	}
+
+	return NULL;
+}
+
+static bool is_net_up() 
+{
+	static struct ppp_context *ppp_ctx = NULL;
+	if (!ppp_ctx)
+		ppp_ctx = net_ppp_context_get(0);
+
+	return ppp_ctx && ppp_ctx->is_network_up;
+}
+
+static void restart_ppp () 
+{
+	
+	struct device *sim8xx_modem = device_get_binding_any("sim8xx_modem");
+	struct device *gsm_ppp = device_get_binding_any("modem_gsm");
+	struct device *ppp_dev = device_get_binding_any("ppp");
+
+	if (!sim8xx_modem) {
+		LOG_ERR("Cannot find modem hardware!");
+		return;
+	}
+
+
+	if (!gsm_ppp) {
+		LOG_ERR("Cannot find modem!");
+		return;
+	}
+
+	if (!ppp_dev) {
+		LOG_ERR("Cannot find PPP %s!", CONFIG_NET_PPP_DRV_NAME);
+		return;
+	}
+	
+	const struct ppp_api *api =
+				(const struct ppp_api *)ppp_dev->driver_api;
+/*
+	LOG_INF("MQTT - stopping PPP.");			
+	api->stop (ppp_dev);
+
+*/
+	LOG_INF("MQTT - stopping PPP.");
+	api->stop(ppp_dev);
+ 	struct ppp_context *ppp_ctx = net_ppp_context_get(0);
+	while (ppp_ctx->carrier_mgmt.enabled) 
+		k_sleep(K_MSEC(100));
+	// fix a bug in PPP
+	ppp_ctx->is_enabled = false;
+	ppp_ctx->phase = PPP_ESTABLISH;
+	//ppp_ctx->modem_init_done = false;
+	LOG_INF("MQTT - starting PPP.");
+
+	sim8xx_modem->config->init(sim8xx_modem);
+	gsm_ppp->config->init(gsm_ppp);
+	//api->start (ppp_dev);
+
+	//api->iface_api.init(net_if_get_default());
+/*
+	struct net_if *iface = net_if_get_default();
+	net_ppp_carrier_off(iface);
+	net_ppp_carrier_on(iface);
+
+*/
+	//net_ppp_init(struct net_if *iface)
+//	__net_l2_PPP
+}
+
+static void restart_ppp_when_dead ()
+{	
+	if (net_ppp_context_get(0)->phase != PPP_DEAD) 
+		return;
+
+	restart_ppp();
+
+
 }
 
 static bool process_input()
 {
+
+	if (!is_net_up()) {
+		LOG_INF("MQTT - network is down.");
+		restart_ppp_when_dead();
+		return false;
+	}
+
 	if (!connected) {
 		board_lights.modem_connected(false);
-		int rc;
+		int rc;	
 
 #if defined(CONFIG_MQTT_LIB_TLS)
 		rc = tls_init();
 		PRINT_RESULT("tls_init", rc);
 #endif
 		LOG_INF("attempting to connect: ");
-		rc = try_to_connect(&client_ctx);
-		PRINT_RESULT("try_to_connect", rc);
+		rc = try_to_connect(&client_ctx);		
 		if (0 != rc) {
-			LOG_INF("could not connect to mqtt!!!");
+			PRINT_RESULT("Unable to connect to MQTT: ", rc);
+			restart_ppp();
 			return false;
 		}
+		LOG_INF("Successfully connected to MQTT.");
 		// connected here, do subscribe
 		if (!mqtt_sub())
 			return false;

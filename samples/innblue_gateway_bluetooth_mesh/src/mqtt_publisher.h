@@ -9,7 +9,7 @@ extern "C" {
 typedef void (*subscribe_cb_t)(const char *payload);
 typedef	struct
 {
-	bool (*initialize)(void);
+	bool (*initialize)(const char *client_id);
 	bool (*publish)(char *message);
 	bool (*set_subscribe_callback)(subscribe_cb_t subscribe_cb);
 	bool (*process_input)(void);

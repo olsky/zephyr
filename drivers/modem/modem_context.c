@@ -91,6 +91,9 @@ static int modem_context_get(struct modem_context *ctx)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(contexts); i++) {
+		if (contexts[i] == ctx)
+			return 0;
+
 		if (!contexts[i]) {
 			contexts[i] = ctx;
 			return 0;
