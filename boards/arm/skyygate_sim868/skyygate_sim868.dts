@@ -66,7 +66,7 @@
 /* Skyygate Sim868 board uses USART2 to 
  * interface with the SIM Modem device. */
 &usart2 {
-	current-speed = <115200>;
+	current-speed = <38400>;
 	status = "okay";
 };
 
