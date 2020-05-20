@@ -24,6 +24,7 @@ LOG_MODULE_REGISTER(mqtt_publisher, LOG_LEVEL_DBG);
 #define CLIENT_ID_LEN (MAX_IMEI_LEN + 6)
 static u8_t client_id_buf[CLIENT_ID_LEN+1];
 static u8_t publish_topic[MAX_IMEI_LEN+128];
+static u8_t sub_topic[MAX_IMEI_LEN+128];
 
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[APP_MQTT_BUFFER_SIZE];
@@ -307,15 +308,20 @@ static void broker_init(void)
 
 static int init_client_id(void)
 {
-	const char* imei = "0123456789";
-
 	printk("innblue > %s [%d] > enter\n", __func__, __LINE__);
 
-	// FIXME: This code needs to be updated to get the IMEI.
+	const char* imei = get_imei();
 
+	/* pub topic. */
 	snprintf(publish_topic, sizeof(publish_topic),
 		     CONFIG_MQTT_PUB_TOPIC, imei);
 	printk("\tpub-topic for this gateway: %s\n", publish_topic);
+
+	/* sub topic*/
+	snprintf(sub_topic, sizeof(sub_topic),
+		     CONFIG_MQTT_SUB_TOPIC, imei);
+	printk("\tsub-topic for this gateway: %s\n", sub_topic);
+
 
 	return 0;
 }
@@ -389,12 +395,12 @@ static void client_init(struct mqtt_client *client)
 
 static bool mqtt_sub(void)
 {
-	LOG_INF("try to subscribe to %s", CONFIG_MQTT_SUB_TOPIC);
+	LOG_INF("try to subscribe to %s", sub_topic);
 	struct mqtt_topic subscribe_topics[] = {
 		{
 			.topic = {
-				.utf8 = CONFIG_MQTT_SUB_TOPIC,
-				.size = strlen(CONFIG_MQTT_SUB_TOPIC)
+				.utf8 = sub_topic,
+				.size = strlen(sub_topic)
 			},
 			.qos = MQTT_QOS_0_AT_MOST_ONCE
 		}
