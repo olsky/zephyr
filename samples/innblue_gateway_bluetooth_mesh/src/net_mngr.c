@@ -15,7 +15,7 @@ static const char* get_guid ()
 		"CONFIG_MODEM_SHELL=y required to obtain EMEI");  
 
 	struct modem_context *ctx = modem_context_from_iface_dev(
-		device_get_binding("modem_gsm"));
+		device_get_binding(CONFIG_MODEM_GSM_UART_NAME));
 
 	__ASSERT(ctx, "Cannot obtain modem context!");
 	__ASSERT(*ctx->data_imei, "EMEI is empty!");
