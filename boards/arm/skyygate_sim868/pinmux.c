@@ -16,19 +16,18 @@
 /* Pin assignments for Innblue skyygate sim868 board. */
 static const struct pin_config pinconf[] = {
 
-#ifdef CONFIG_UART_1
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(usart1))
 	/* STM32_PUPDR_PULL_UP Pull ups required for interurpt mode config.*/
 	{STM32_PIN_PB6, STM32L4X_PINMUX_FUNC_PB6_USART1_TX | STM32_PUPDR_PULL_UP},
 	{STM32_PIN_PB7, STM32L4X_PINMUX_FUNC_PB7_USART1_RX | STM32_PUPDR_PULL_UP},
 #endif	/* CONFIG_UART_1 */
-#ifdef CONFIG_UART_2
-	// where to set hw_flow ctrl?
-	{STM32_PIN_PD5, STM32L4X_PINMUX_FUNC_PD5_USART2_TX  },
-	{STM32_PIN_PD6, STM32L4X_PINMUX_FUNC_PD6_USART2_RX }, // fluking
-// ?	{STM32_PIN_PD3, STM32L4X_PINMUX_FUNC_PD3_USART2_CTS },
-// ? shouldn't have any impact but OK to remove	{STM32_PIN_PD4, STM32L4X_PINMUX_FUNC_PD4_USART2_RTS },
-	// i have no more ideas in my backpack :))))
+
+#if DT_HAS_NODE_STATUS_OKAY(DT_NODELABEL(usart2))
+	{STM32_PIN_PD5, STM32L4X_PINMUX_FUNC_PD5_USART2_TX },
+	{STM32_PIN_PD6, STM32L4X_PINMUX_FUNC_PD6_USART2_RX },
 #endif	/* CONFIG_UART_2 */
+
+#if 0 /* Not required for now. */
 
 #ifdef CONFIG_UART_4
 	/* STM32_PUPDR_PULL_UP Pull ups required for interurpt mode config.*/
@@ -48,20 +47,9 @@ static const struct pin_config pinconf[] = {
 	{STM32_PIN_PB10, STM32L4X_PINMUX_FUNC_PB10_I2C2_SCL},
 	{STM32_PIN_PB11, STM32L4X_PINMUX_FUNC_PB11_I2C2_SDA},
 #endif /* CONFIG_I2C_2 */
+
+#endif /* #if 0 */
 };
-
-/* Configures the pin as output and sets them high. */
-static void config_pin_out_set(struct device *gpio, int pin, int value)
-{
-	int err;
-
-	/* Configure this pin as output. */
-	err = gpio_pin_configure(gpio, pin, GPIO_OUTPUT);
-	if (err == 0) {
-		/* Write "1" to this pin. */
-		err = gpio_pin_set(gpio, pin, value);
-	}
-}
 
 static int pinmux_stm32_init(struct device *port)
 {
@@ -80,43 +68,38 @@ static int pwr_ctrl_init(struct device *dev)
        them high.
 
 	   Note that eventually it might be good to put this in a different function. */
-	
-/*
-	printk("pwr_ctrl_init > sim8xx > power ON\n");
 
-	// power enable --> module power, should go first...
-	config_pin_out_set(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, 0);
-	k_sleep(1000);
+	/* Configure PC0 / PE6 as output. */
+	gpio_pin_configure(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, GPIO_OUTPUT);
+	gpio_pin_configure(device_get_binding(DT_INST_5_ST_STM32_GPIO_LABEL), 6, GPIO_OUTPUT);
+
+	/* PC0 Low -> Wait -> High -> Wait. */
+	printk("init_modem > sim8xx > power Off\n");
+	gpio_pin_set(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, 0);
+	k_busy_wait(500000);
+	printk("init_modem > sim8xx > power ON\n");
 	gpio_pin_set(device_get_binding(DT_INST_2_ST_STM32_GPIO_LABEL), 0, 1);
-	k_sleep(1000);
-	
-	// try?
+	k_busy_wait(2000000);
 
-
-	// sorry, modified a bit... was trying all...
-	// looks OK.. except i will give it more time..
-	// gsm pc0 -> gsm_pwr_on
-	printk("pwr_ctrl_init > sim8xx > GSM ON\n");
-	config_pin_out_set(device_get_binding(DT_INST_5_ST_STM32_GPIO_LABEL), 6, 0);
-	k_sleep(1000);
+	/* PC6 High -> Wait. */
+	printk("init_modem > sim8xx > gsm ON\n");
 	gpio_pin_set(device_get_binding(DT_INST_5_ST_STM32_GPIO_LABEL), 6, 1);
-	k_sleep(1000);
-	
-	printk("pwr_ctrl_init > sim8xx > GNSS  ON\n");
-	// PH1 is GPS ON output
-	config_pin_out_set(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 1, 1);
-*/
-	
-	// there is an INPUT from sim800 module --> PH0 NET_STATUS 
-	printk("pwr_ctrl_init > sim8xx > config status input\n");
-	gpio_pin_configure(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 0, GPIO_INPUT);
+	k_busy_wait(2000000);
 
+	gpio_pin_configure(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 1, GPIO_OUTPUT);
+	printk("init_modem > sim8xx > gnss ON\n");
+	gpio_pin_set(device_get_binding(DT_INST_3_ST_STM32_GPIO_LABEL), 1, 1);
+
+	/* Wait 5secs before moving forward. This will give the modem firmware enough time to boot and run. */
+	printk("Sleeping for 5secsss\n");
+	k_busy_wait(5000000);
+	printk("Waking up from for 5secsss\n");
 
 	return 0;
 }
 
 SYS_INIT(pinmux_stm32_init, PRE_KERNEL_1,
-	 CONFIG_PINMUX_STM32_DEVICE_INITIALIZATION_PRIORITY);
+	     CONFIG_PINMUX_STM32_DEVICE_INITIALIZATION_PRIORITY);
 
 // after 45 which is pinmux prio 
 DEVICE_INIT(pwr_ctrl_init, "", pwr_ctrl_init, NULL, NULL,

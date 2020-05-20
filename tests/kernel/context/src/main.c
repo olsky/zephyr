@@ -697,6 +697,16 @@ static void busy_wait_thread(void *mseconds, void *arg2, void *arg3)
 	k_busy_wait(usecs);
 	TC_PRINT("Thread busy waiting completed\n");
 
+	/* FIXME: Broken on Nios II, see #22956 */
+#ifndef CONFIG_NIOS2
+	int key = arch_irq_lock();
+
+	TC_PRINT("Thread busy waiting for %d usecs (irqs locked)\n", usecs);
+	k_busy_wait(usecs);
+	TC_PRINT("Thread busy waiting completed (irqs locked)\n");
+	arch_irq_unlock(key);
+#endif
+
 	/*
 	 * Ideally the test should verify that the correct number of ticks
 	 * have elapsed. However, when running under QEMU, the tick interrupt
@@ -771,7 +781,7 @@ static void test_busy_wait(void)
 			INT_TO_POINTER(timeout), NULL,
 			NULL, K_PRIO_COOP(THREAD_PRIORITY), 0, K_NO_WAIT);
 
-	rv = k_sem_take(&reply_timeout, K_MSEC(timeout * 2));
+	rv = k_sem_take(&reply_timeout, K_MSEC(timeout * 2 * 2));
 
 	zassert_false(rv, " *** thread timed out waiting for " "k_busy_wait()");
 }

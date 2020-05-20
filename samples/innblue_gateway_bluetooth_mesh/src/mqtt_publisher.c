@@ -464,7 +464,7 @@ static int process_mqtt_and_sleep(struct mqtt_client *client, int timeout)
 		wait(remaining);
 
 		rc = mqtt_live(client);
-		if (rc != 0) {
+		if (rc != 0 && rc != -EAGAIN) {
 			PRINT_RESULT("mqtt_live", rc);
 			return rc;
 		}

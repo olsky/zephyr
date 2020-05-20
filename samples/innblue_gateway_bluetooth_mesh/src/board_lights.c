@@ -57,7 +57,7 @@
 #endif
 
 
-#define BLINK_DURATION_MS (250)
+#define BLINK_DURATION_MS (K_MSEC(250))
 
 static K_THREAD_STACK_DEFINE(thread_stack, CONFIG_SYSTEM_STATE_THREAD_STACK_SIZE);
 static struct k_thread thread_data;

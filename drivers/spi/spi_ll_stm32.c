@@ -26,7 +26,7 @@ LOG_MODULE_REGISTER(spi_ll_stm32);
 #include "spi_ll_stm32.h"
 
 #define DEV_CFG(dev)						\
-(const struct spi_stm32_config * const)(dev->config->config_info)
+(const struct spi_stm32_config * const)(dev->config_info)
 
 #define DEV_DATA(dev)					\
 (struct spi_stm32_data * const)(dev->driver_data)
@@ -61,7 +61,6 @@ static void dma_callback(void *arg, u32_t channel, int status)
 {
 	/* callback_arg directly holds the client data */
 	struct spi_stm32_data *data = arg;
-	u32_t periph_addr;
 
 	if (status != 0) {
 		LOG_ERR("DMA callback error with channel %d.", channel);
@@ -72,51 +71,11 @@ static void dma_callback(void *arg, u32_t channel, int status)
 
 	/* identify the origin of this callback */
 	if (channel == data->dma_tx.channel) {
-		/* spi tx direction has mem as source and periph as dest */
-		if (data->ctx.tx_count <= 1) {
-			/* if it was the last count, then we are done */
-			data->dma_tx.transfer_complete = true;
-		} else {
-			/* this part of the transfer ends */
-			data->dma_tx.transfer_complete = false;
-			/*
-			 * Update the current Tx buffer, decreasing length of
-			 * data->ctx.tx_count,  by its own length
-			 */
-			spi_context_update_tx(&data->ctx, 1, data->ctx.tx_len);
-			/* keep the same dest (peripheral) */
-			periph_addr =
-				data->dma_tx.dma_cfg.head_block->dest_address;
-			/* and reload dma with a new source (memory) buffer */
-			dma_reload(data->dev_dma_tx,
-				data->dma_tx.channel,
-				(u32_t)data->ctx.tx_buf,
-				periph_addr,
-				data->ctx.tx_len);
-		}
+		/* this part of the transfer ends */
+		data->dma_tx.transfer_complete = true;
 	} else if (channel == data->dma_rx.channel) {
-		/* spi rx direction has periph as source and mem as dest */
-		if (data->ctx.rx_count <= 1) {
-			/* if it was the last count, then we are done */
-			data->dma_rx.transfer_complete = true;
-		} else {
-			/* this part of the transfer ends */
-			data->dma_rx.transfer_complete = false;
-			/*
-			 * Update the current Rx buffer, decreasing length of
-			 * data->ctx.rx_count,  by its own length
-			 */
-			spi_context_update_rx(&data->ctx, 1, data->ctx.rx_len);
-			/* keep the same source (peripheral) */
-			periph_addr =
-				data->dma_rx.dma_cfg.head_block->dest_address;
-			/* and reload dma with a new dest (memory) buffer */
-			dma_reload(data->dev_dma_rx,
-				data->dma_rx.channel,
-				periph_addr,
-				(u32_t)data->ctx.rx_buf,
-				data->ctx.rx_len);
-		}
+		/* this part of the transfer ends */
+		data->dma_rx.transfer_complete = true;
 	} else {
 		LOG_ERR("DMA callback channel %d is not valid.", channel);
 		data->dma_tx.transfer_complete = true;
@@ -423,7 +382,7 @@ static void spi_stm32_complete(struct spi_stm32_data *data, SPI_TypeDef *spi,
 
 	spi_context_cs_control(&data->ctx, false);
 
-#if DT_HAS_COMPAT(st_stm32_spi_fifo)
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo)
 	/* Flush RX buffer */
 	while (ll_func_rx_is_not_empty(spi)) {
 		(void) LL_SPI_ReceiveData8(spi);
@@ -451,7 +410,7 @@ static void spi_stm32_complete(struct spi_stm32_data *data, SPI_TypeDef *spi,
 static void spi_stm32_isr(void *arg)
 {
 	struct device * const dev = (struct device *) arg;
-	const struct spi_stm32_config *cfg = dev->config->config_info;
+	const struct spi_stm32_config *cfg = dev->config_info;
 	struct spi_stm32_data *data = dev->driver_data;
 	SPI_TypeDef *spi = cfg->spi;
 	int err;
@@ -570,7 +529,7 @@ static int spi_stm32_configure(struct device *dev,
 		LL_SPI_SetDataWidth(spi, LL_SPI_DATAWIDTH_16BIT);
 	}
 
-#if DT_HAS_COMPAT(st_stm32_spi_fifo)
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo)
 	ll_func_set_fifo_threshold_8bit(spi);
 #endif
 
@@ -645,7 +604,7 @@ static int transceive(struct device *dev,
 	/* Set buffers info */
 	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
 
-#if DT_HAS_COMPAT(st_stm32_spi_fifo)
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo)
 	/* Flush RX buffer */
 	while (ll_func_rx_is_not_empty(spi)) {
 		(void) LL_SPI_ReceiveData8(spi);
@@ -727,8 +686,62 @@ static int transceive_dma(struct device *dev,
 
 	LL_SPI_Enable(spi);
 
-	do {
-	} while (spi_stm32_dma_transfer_ongoing(data));
+	/* store spi peripheral address */
+	u32_t periph_addr = data->dma_tx.dma_cfg.head_block->dest_address;
+
+	for (; ;) {
+		/* wait for SPI busy flag */
+		while (LL_SPI_IsActiveFlag_BSY(spi) == 1) {
+		}
+
+		/* once SPI is no more busy, wait for DMA transfer end */
+		while (spi_stm32_dma_transfer_ongoing(data) == 1) {
+		}
+
+		if ((data->ctx.tx_count <= 1) && (data->ctx.rx_count <= 1)) {
+			/* if it was the last count, then we are done */
+			break;
+		}
+
+		if (data->dma_tx.transfer_complete == true) {
+			LL_SPI_DisableDMAReq_TX(spi);
+			/*
+			 * Update the current Tx buffer, decreasing length of
+			 * data->ctx.tx_count,  by its own length
+			 */
+			spi_context_update_tx(&data->ctx, 1, data->ctx.tx_len);
+			/* keep the same dest (peripheral) */
+			data->dma_tx.transfer_complete = false;
+			/* and reload dma with a new source (memory) buffer */
+			dma_reload(data->dev_dma_tx,
+				data->dma_tx.channel,
+				(u32_t)data->ctx.tx_buf,
+				periph_addr,
+				data->ctx.tx_len);
+		}
+
+		if (data->dma_rx.transfer_complete == true) {
+			LL_SPI_DisableDMAReq_RX(spi);
+			/*
+			 * Update the current Rx buffer, decreasing length of
+			 * data->ctx.rx_count,  by its own length
+			 */
+			spi_context_update_rx(&data->ctx, 1, data->ctx.rx_len);
+			/* keep the same source (peripheral) */
+			data->dma_rx.transfer_complete = false;
+			/* and reload dma with a new dest (memory) buffer */
+			dma_reload(data->dev_dma_rx,
+				data->dma_rx.channel,
+				periph_addr,
+				(u32_t)data->ctx.rx_buf,
+				data->ctx.rx_len);
+		}
+		LL_SPI_EnableDMAReq_RX(spi);
+		LL_SPI_EnableDMAReq_TX(spi);
+	}
+
+	/* end of the transfer : all buffers sent/receceived */
+	LL_SPI_Disable(spi);
 
 	/* This is turned off in spi_stm32_complete(). */
 	spi_context_cs_control(&data->ctx, true);
@@ -778,7 +791,7 @@ static const struct spi_driver_api api_funcs = {
 static int spi_stm32_init(struct device *dev)
 {
 	struct spi_stm32_data *data __attribute__((unused)) = dev->driver_data;
-	const struct spi_stm32_config *cfg = dev->config->config_info;
+	const struct spi_stm32_config *cfg = dev->config_info;
 
 	__ASSERT_NO_MSG(device_get_binding(STM32_CLOCK_CONTROL_NAME));
 
@@ -898,26 +911,4 @@ DEVICE_AND_API_INIT(spi_stm32_##id, DT_INST_LABEL(id),	\
 									\
 STM32_SPI_IRQ_HANDLER(id)
 
-#if DT_HAS_DRV_INST(0)
-STM32_SPI_INIT(0)
-#endif /* DT_HAS_DRV_INST(0) */
-
-#if DT_HAS_DRV_INST(1)
-STM32_SPI_INIT(1)
-#endif /* DT_HAS_DRV_INST(1) */
-
-#if DT_HAS_DRV_INST(2)
-STM32_SPI_INIT(2)
-#endif /* DT_HAS_DRV_INST(2) */
-
-#if DT_HAS_DRV_INST(3)
-STM32_SPI_INIT(3)
-#endif /* DT_HAS_DRV_INST(3) */
-
-#if DT_HAS_DRV_INST(4)
-STM32_SPI_INIT(4)
-#endif /* DT_HAS_DRV_INST(4) */
-
-#if DT_HAS_DRV_INST(5)
-STM32_SPI_INIT(5)
-#endif /* DT_HAS_DRV_INST(5) */
+DT_INST_FOREACH_STATUS_OKAY(STM32_SPI_INIT)

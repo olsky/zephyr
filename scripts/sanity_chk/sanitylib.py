@@ -1336,6 +1336,12 @@ class TestCase(DisablePyTestCollectionMixin):
 
         # workdir can be "."
         unique = os.path.normpath(os.path.join(relative_tc_root, workdir, name))
+        check = name.split(".")
+        if len(check) < 2:
+            raise SanityCheckException(f"""bad test name '{name}' in {testcase_root}/{workdir}. \
+Tests should reference the category and subsystem with a dot as a separator.
+                    """
+                    )
         return unique
 
     @staticmethod
@@ -1405,15 +1411,17 @@ class TestCase(DisablePyTestCollectionMixin):
 
     def scan_path(self, path):
         subcases = []
-        for filename in glob.glob(os.path.join(path, "src", "*.c")):
+        for filename in glob.glob(os.path.join(path, "src", "*.c*")):
             try:
                 _subcases, warnings = self.scan_file(filename)
                 if warnings:
                     logger.error("%s: %s" % (filename, warnings))
+                    raise SanityRuntimeError("%s: %s" % (filename, warnings))
                 if _subcases:
                     subcases += _subcases
             except ValueError as e:
                 logger.error("%s: can't find: %s" % (filename, e))
+
         for filename in glob.glob(os.path.join(path, "*.c")):
             try:
                 _subcases, warnings = self.scan_file(filename)
@@ -1770,7 +1778,8 @@ class FilterBuilder(CMake):
         if self.testcase and self.testcase.tc_filter:
             try:
                 if os.path.exists(dts_path):
-                    edt = edtlib.EDT(dts_path, [os.path.join(ZEPHYR_BASE, "dts", "bindings")])
+                    edt = edtlib.EDT(dts_path, [os.path.join(ZEPHYR_BASE, "dts", "bindings")],
+                            warn_reg_unit_address_mismatch=False)
                 else:
                     edt = None
                 res = expr_parser.parse(self.testcase.tc_filter, filter_data, edt)
@@ -2205,6 +2214,10 @@ class TestSuite(DisablePyTestCollectionMixin):
         # hardcoded for now
         self.connected_hardware = []
 
+    def get_platform_instances(self, platform):
+        filtered_dict = {k:v for k,v in self.instances.items() if k.startswith(platform + "/")}
+        return filtered_dict
+
     def config(self):
         logger.info("coverage platform: {}".format(self.coverage_platform))
 
@@ -2285,6 +2298,7 @@ class TestSuite(DisablePyTestCollectionMixin):
 
     def summary(self, unrecognized_sections):
         failed = 0
+        run = 0
         for instance in self.instances.values():
             if instance.status == "failed":
                 failed += 1
@@ -2293,6 +2307,9 @@ class TestSuite(DisablePyTestCollectionMixin):
                              (Fore.RED, Fore.RESET, instance.name,
                               str(instance.metrics.get("unrecognized", []))))
                 failed += 1
+
+            if instance.metrics['handler_time']:
+                run += 1
 
         if self.total_tests and self.total_tests != self.total_skipped:
             pass_rate = (float(self.total_tests - self.total_failed - self.total_skipped) / float(
@@ -2324,6 +2341,9 @@ class TestSuite(DisablePyTestCollectionMixin):
                 self.total_platforms,
                 (100 * len(self.selected_platforms) / len(self.platforms))
             ))
+
+        logger.info(f"{Fore.GREEN}{run}{Fore.RESET} tests executed on platforms, \
+{Fore.RED}{self.total_tests - run}{Fore.RESET} tests were only built.")
 
     def save_reports(self, name, suffix, report_dir, no_update, release, only_failed):
         if not self.instances:
@@ -2530,6 +2550,7 @@ class TestSuite(DisablePyTestCollectionMixin):
         all_filter = kwargs.get('all')
         device_testing_filter = kwargs.get('device_testing')
         force_toolchain = kwargs.get('force_toolchain')
+        force_platform = kwargs.get('force_platform')
 
         logger.debug("platform filter: " + str(platform_filter))
         logger.debug("    arch_filter: " + str(arch_filter))
@@ -2564,7 +2585,7 @@ class TestSuite(DisablePyTestCollectionMixin):
                     self.device_testing,
                     self.fixture
                 )
-                if plat.name in exclude_platform:
+                if not force_platform and plat.name in exclude_platform:
                     discards[instance] = "Platform is excluded on command line."
                     continue
 
@@ -2599,17 +2620,19 @@ class TestSuite(DisablePyTestCollectionMixin):
                     discards[instance] = "Command line testcase arch filter"
                     continue
 
-                if tc.arch_whitelist and plat.arch not in tc.arch_whitelist:
-                    discards[instance] = "Not in test case arch whitelist"
-                    continue
+                if not force_platform:
 
-                if tc.arch_exclude and plat.arch in tc.arch_exclude:
-                    discards[instance] = "In test case arch exclude"
-                    continue
+                    if tc.arch_whitelist and plat.arch not in tc.arch_whitelist:
+                        discards[instance] = "Not in test case arch whitelist"
+                        continue
 
-                if tc.platform_exclude and plat.name in tc.platform_exclude:
-                    discards[instance] = "In test case platform exclude"
-                    continue
+                    if tc.arch_exclude and plat.arch in tc.arch_exclude:
+                        discards[instance] = "In test case arch exclude"
+                        continue
+
+                    if tc.platform_exclude and plat.name in tc.platform_exclude:
+                        discards[instance] = "In test case platform exclude"
+                        continue
 
                 if tc.toolchain_exclude and toolchain in tc.toolchain_exclude:
                     discards[instance] = "In test case toolchain exclude"
