@@ -85,6 +85,11 @@ static void gsm_rx(struct gsm_modem *gsm)
 	}
 }
 
+MODEM_CMD_DEFINE(gsm_cmd_ignore)
+{
+	return len;
+}
+
 MODEM_CMD_DEFINE(gsm_cmd_ok)
 {
 	modem_cmd_handler_set_error(data, 0);
@@ -101,14 +106,31 @@ MODEM_CMD_DEFINE(gsm_cmd_error)
 	return 0;
 }
 
+static struct modem_cmd init_response_cmds[] = {
+	// by response length descending
+	MODEM_CMD_DIRECT("RDY", gsm_cmd_ignore),
+	MODEM_CMD_DIRECT("Call Ready", gsm_cmd_ignore),
+	MODEM_CMD_DIRECT("SMS Ready", gsm_cmd_ignore),
+	MODEM_CMD_DIRECT("+CPIN: READY", gsm_cmd_ignore),
+		
+	MODEM_CMD("ATE0", gsm_cmd_ok, 0U, ""),
+	MODEM_CMD("AT", gsm_cmd_ok, 0U, ""),
+	MODEM_CMD("OK", gsm_cmd_ok, 0U, ""),
+	
+};
+
 static struct modem_cmd response_cmds[] = {
+	MODEM_CMD_DIRECT("RDY", gsm_cmd_ignore),
+	MODEM_CMD_DIRECT("Call Ready", gsm_cmd_ignore),
+	MODEM_CMD_DIRECT("SMS Ready", gsm_cmd_ignore),
+	MODEM_CMD_DIRECT("+CPIN: READY", gsm_cmd_ignore),	
 	MODEM_CMD("OK", gsm_cmd_ok, 0U, ""),
 	MODEM_CMD("ERROR", gsm_cmd_error, 0U, ""),
-	MODEM_CMD("CONNECT", gsm_cmd_ok, 0U, ""),
+	MODEM_CMD("CONNECT", gsm_cmd_ok, 0U, "")
 };
 
 #if defined(CONFIG_MODEM_SHELL)
-#define MDM_MANUFACTURER_LENGTH  10
+#define MDM_MANUFACTURER_LENGTH  32
 #define MDM_MODEL_LENGTH         16
 #define MDM_REVISION_LENGTH      64
 #define MDM_IMEI_LENGTH          16
@@ -138,6 +160,8 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_manufacturer)
 	minfo.mdm_manufacturer[out_len] = '\0';
 	LOG_INF("Manufacturer: %s", log_strdup(minfo.mdm_manufacturer));
 
+	modem_cmd_handler_set_error(data, 0);
+	k_sem_give(&gsm.sem_response); 
 	return 0;
 }
 
@@ -152,6 +176,8 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_model)
 	minfo.mdm_model[out_len] = '\0';
 	LOG_INF("Model: %s", log_strdup(minfo.mdm_model));
 
+	modem_cmd_handler_set_error(data, 0);
+	k_sem_give(&gsm.sem_response); 
 	return 0;
 }
 
@@ -166,7 +192,29 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_revision)
 	minfo.mdm_revision[out_len] = '\0';
 	LOG_INF("Revision: %s", log_strdup(minfo.mdm_revision));
 
+	modem_cmd_handler_set_error(data, 0);
+	k_sem_give(&gsm.sem_response); 
 	return 0;
+}
+
+static bool is_valid_emei(const char* imei)
+{
+	// https://en.wikipedia.org/wiki/International_Mobile_Equipment_Identity
+	int len = 0;
+	int checksum = 0;
+	int digit = 0;
+	for (const char *c = imei; *c; c++) {
+		digit = *c - '0';
+		if (digit < 0 || digit > 9)
+			return false;
+
+		len++;
+		checksum += len % 2
+			? digit // odd
+			: (digit * 2 / 10 + digit * 2 % 10); // even
+	}
+	
+	return (MDM_IMEI_LENGTH - 1) == len && 0 == checksum % 10;
 }
 
 /* Handler: <IMEI> */
@@ -177,8 +225,15 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_imei)
 	out_len = net_buf_linearize(minfo.mdm_imei, sizeof(minfo.mdm_imei) - 1,
 				    data->rx_buf, 0, len);
 	minfo.mdm_imei[out_len] = '\0';
-	LOG_INF("IMEI: %s", log_strdup(minfo.mdm_imei));
-
+	if (is_valid_emei(minfo.mdm_imei)) {
+		LOG_INF("IMEI: %s", log_strdup(minfo.mdm_imei));
+		modem_cmd_handler_set_error(data, 0);
+	} else {
+		LOG_ERR("Invalid IMEI: %s", log_strdup(minfo.mdm_imei));
+		modem_cmd_handler_set_error(data, -EINVAL);	
+	}
+	
+	k_sem_give(&gsm.sem_response); 
 	return 0;
 }
 #endif /* CONFIG_MODEM_SHELL */
@@ -206,8 +261,6 @@ MODEM_CMD_DEFINE(on_cmd_at_rssi)
 }
 
 static struct setup_cmd setup_cmds[] = {
-	/* no echo */
-	SETUP_CMD_NOHANDLE("ATE0"),
 	/* hang up */
 	SETUP_CMD_NOHANDLE("ATH"),
 	/* extender errors in numeric form */
@@ -547,8 +600,8 @@ static void gsm_configure(struct k_work *work)
 
 	ret = modem_cmd_send(&gsm->context.iface,
 			     &gsm->context.cmd_handler,
-			     &response_cmds[0],
-			     ARRAY_SIZE(response_cmds),
+			     init_response_cmds,
+			     ARRAY_SIZE(init_response_cmds),
 			     "AT", &gsm->sem_response,
 			     GSM_CMD_AT_TIMEOUT);
 	if (ret < 0) {
@@ -559,6 +612,21 @@ static void gsm_configure(struct k_work *work)
 
 		return;
 	}
+
+	ret = modem_cmd_send(&gsm->context.iface,
+			     &gsm->context.cmd_handler,
+			     init_response_cmds,
+			     ARRAY_SIZE(init_response_cmds),
+			     "ATE0", &gsm->sem_response,
+			     GSM_CMD_AT_TIMEOUT);
+	if (ret < 0) {
+		LOG_DBG("modem not ready %d", ret);
+
+		(void)k_delayed_work_submit(&gsm->gsm_configure_work,
+					    K_NO_WAIT);
+
+		return;
+	}	
 
 	if (IS_ENABLED(CONFIG_GSM_MUX) && ret == 0 &&
 	    gsm->mux_enabled == false) {
