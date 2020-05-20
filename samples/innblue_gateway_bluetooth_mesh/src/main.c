@@ -16,6 +16,7 @@ LOG_MODULE_REGISTER(mesh_gateway, 3);
 #include "uart_mqtt_bridge.h"
 #include "board_lights.h"
 #include "config.h"
+#include "net_mngr.h"
 
 /* System main thread. */
 void main(void)
@@ -29,9 +30,18 @@ void main(void)
 	board_lights.blink_uart(2);
 	board_lights.modem_connected(false);
 
-	/* Modem is already connected via PPP. Lets init mqtt. */
-	board_lights.modem_connected(true);
-	mqtt_publisher.initialize("gw0123456789");
+	int net_wait_seconds = 120;
+	while (net_wait_seconds && !net_mngr.is_network_ready()) {
+		k_sleep(K_SECONDS(1));
+		net_wait_seconds--;
+	}
+
+	if (net_mngr.is_network_ready() &&
+		mqtt_publisher.initialize(net_mngr.get_guid())) 
+		board_lights.modem_connected(true);
+	else
+		net_mngr.restart();
+	
 
 	/* Set up serial link to BLE Mesh. */
 	printk("Setting up serial link to Bluetooth mesh...\n");
@@ -39,11 +49,11 @@ void main(void)
 	mqtt_publisher.set_subscribe_callback(uart_mqtt_bridge.write_to_uart);
 
 	printk("connect to MQTT and start processing...\n");
+
 	while (1) {
 		if (!mqtt_publisher.process_input())
-			k_sleep(K_SECONDS(5));
+			net_mngr.restart();
 	}
-
 }
 
 /**@brief Fatal error handler */
