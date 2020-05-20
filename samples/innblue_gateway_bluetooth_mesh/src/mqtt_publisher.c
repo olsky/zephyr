@@ -326,8 +326,8 @@ static int init_client_id(const char *client_id)
 		if ((*c < '0' || *c > '9') && 
 			(*c < 'a' || *c > 'z') && 
 			(*c < 'A' || *c > 'Z')) {
-			printk("MQTT: client_id contains illegal characters, "
-				"see MQTT Spec MQTT-3.1.3-5.");
+			printk("MQTT: client_id '%s' has invalid characters, "
+				"see MQTT Spec MQTT-3.1.3-5.", client_id);
 			return  EINVAL;	
 		}
 		
