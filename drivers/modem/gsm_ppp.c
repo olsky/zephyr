@@ -7,6 +7,9 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(modem_gsm, CONFIG_MODEM_LOG_LEVEL);
 
+/* define CONFIG_MODEM_SHELL for this file only. */
+#define CONFIG_MODEM_SHELL 1
+
 #include <kernel.h>
 #include <device.h>
 #include <sys/ring_buffer.h>
@@ -19,6 +22,13 @@ LOG_MODULE_REGISTER(modem_gsm, CONFIG_MODEM_LOG_LEVEL);
 #include "modem_iface_uart.h"
 #include "modem_cmd_handler.h"
 #include "../console/gsm_mux.h"
+
+#include "modem_context.h"
+const char* get_imei(void)
+{
+	struct modem_context *mdm_ctx = modem_context_from_id(0);
+	return mdm_ctx->data_imei;
+}
 
 #define GSM_CMD_READ_BUF       128
 #define GSM_CMD_AT_TIMEOUT     K_SECONDS(2)
