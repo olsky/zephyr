@@ -249,7 +249,7 @@ MODEM_CMD_DEFINE(on_cmd_at_rssi)
 		return 0;
 	}
 	
-	LOG_INF("RSSI %s, %s", argv[0], argv[1]);
+	LOG_INF("RSSI %s, %s", log_strdup(argv[0]), log_strdup(argv[1]));
 
 	if (atoi(argv[0]) < CONFIG_MODEM_GSM_PPP_MINIMUM_RSSI)
 		modem_cmd_handler_set_error(data, -EINVAL);
