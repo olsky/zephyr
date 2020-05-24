@@ -31,8 +31,9 @@ extern struct at       *at_alloc_zephyr(void);
 /* Modem pin definition. */
 static struct modem_pin modem_pins[] = {
 	/* MDM_RESET */
-	MODEM_PIN(DT_INST_0_SIMCOMM_SIM80X_MDM_RESET_GPIOS_CONTROLLER,
-			DT_INST_0_SIMCOMM_SIM80X_MDM_RESET_GPIOS_PIN, GPIO_DIR_OUT),
+	MODEM_PIN(DT_ST_STM32_USART_40004400_SIMCOMM_SIM80X_40004400_SIM80X_MDM_RESET_GPIOS_CONTROLLER,
+			DT_ST_STM32_USART_40004400_SIMCOMM_SIM80X_40004400_SIM80X_MDM_RESET_GPIOS_PIN, 
+			GPIO_OUTPUT)
 };
 
 /**
@@ -109,6 +110,8 @@ MODEM_CMD_DEFINE(on_cmd_sockcreate)
 	}
 
 	/* don't give back semaphore -- OK to follow */
+
+	return 0;
 }
 
 /* Function: simcomm_sim80x_dev_get
@@ -163,6 +166,7 @@ static int create_socket(struct modem_socket *sock, const struct sockaddr *addr)
 /*
  * Socket Offload OPS
  */
+static const struct socket_op_vtable offload_socket_fd_op_vtable;
 
 static int offload_socket(int family, int type, int proto)
 {
@@ -170,16 +174,9 @@ static int offload_socket(int family, int type, int proto)
 	return modem_socket_get(&mdata.socket_config, family, type, proto);
 }
 
-static int offload_close(int sock_fd)
+static int offload_close(struct modem_socket *sock)
 {
-	struct modem_socket *sock;
 	int ret;
-
-	sock = modem_socket_from_fd(&mdata.socket_config, sock_fd);
-	if (!sock) {
-		/* socket was already closed?  Exit quietly here. */
-		return 0;
-	}
 
 	/* make sure we assigned an id */
 	if (sock->id < mdata.socket_config.base_socket_num) {
@@ -187,27 +184,21 @@ static int offload_close(int sock_fd)
 	}
 
 	/* Attentive to close out this socket. */
-    ret = sim800_modem->ops->socket_close(sim800_modem, (sock->id - 7));
+	ret = sim800_modem->ops->socket_close(sim800_modem, (sock->id - 7));
 
-    /* Was attentive successful? */
+	/* Was attentive successful? */
 	if (ret < 0) {
 		LOG_ERR("socket_close ret:%d", ret);
 	}
 
-	modem_socket_put(&mdata.socket_config, sock_fd);
+	modem_socket_put(&mdata.socket_config, sock->sock_fd);
 	return 0;
 }
 
-static int offload_bind(int sock_fd, const struct sockaddr *addr,
+static int offload_bind(void *obj, const struct sockaddr *addr,
 			socklen_t addrlen)
 {
-	struct modem_socket *sock = NULL;
-
-	sock = modem_socket_from_fd(&mdata.socket_config, sock_fd);
-	if (!sock) {
-		LOG_ERR("Can't locate socket from fd:%d", sock_fd);
-		return -EINVAL;
-	}
+	struct modem_socket *sock = (struct modem_socket *)obj;
 
 	/* save bind address information */
 	memcpy(&sock->src, addr, sizeof(*addr));
@@ -220,10 +211,10 @@ static int offload_bind(int sock_fd, const struct sockaddr *addr,
 	return 0;
 }
 
-static int offload_connect(int sock_fd, const struct sockaddr *addr,
+static int offload_connect(void *obj, const struct sockaddr *addr,
 			   socklen_t addrlen)
 {
-	struct modem_socket *sock;
+	struct modem_socket *sock = (struct modem_socket *) obj;
 	int ret;
 	u16_t dst_port = 0U;
 
@@ -231,15 +222,9 @@ static int offload_connect(int sock_fd, const struct sockaddr *addr,
 		return -EINVAL;
 	}
 
-	sock = modem_socket_from_fd(&mdata.socket_config, sock_fd);
-	if (!sock) {
-		LOG_ERR("Can't locate socket from fd:%d", sock_fd);
-		return -EINVAL;
-	}
-
 	if (sock->id < mdata.socket_config.base_socket_num - 1) {
 		LOG_ERR("Invalid socket_id(%d) from fd:%d",
-			sock->id, sock_fd);
+			sock->id, sock->sock_fd);
 		return -EINVAL;
 	}
 
@@ -273,7 +258,26 @@ static int offload_connect(int sock_fd, const struct sockaddr *addr,
 /* support for POLLIN only for now. */
 static int offload_poll(struct pollfd *fds, int nfds, int msecs)
 {
-	int ret = modem_socket_poll(&mdata.socket_config, fds, nfds, msecs);
+	int ret, i;
+	void *obj;
+
+	/* Only accept modem sockets. */
+	for (i = 0; i < nfds; i++) {
+		if (fds[i].fd < 0) {
+			continue;
+		}
+
+		/* If vtable matches, then it's modem socket. */
+		obj = z_get_fd_obj(fds[i].fd,
+				   (const struct fd_op_vtable *)
+						&offload_socket_fd_op_vtable,
+				   EINVAL);
+		if (obj == NULL) {
+			return -1;
+		}
+	}
+
+	ret = modem_socket_poll(&mdata.socket_config, fds, nfds, msecs);
 
 	if (ret < 0) {
 		LOG_ERR("ret:%d errno:%d", ret, errno);
@@ -282,20 +286,14 @@ static int offload_poll(struct pollfd *fds, int nfds, int msecs)
 	return ret;
 }
 
-static ssize_t offload_recvfrom(int sock_fd, void *buf, short int len,
-				short int flags, struct sockaddr *from,
+static ssize_t offload_recvfrom(void *obj, void *buf, size_t len,
+				int flags, struct sockaddr *from,
 				socklen_t *fromlen)
 {
-	struct modem_socket *sock;
+	struct modem_socket *sock = (struct modem_socket *) obj;
 	short int read = 0;
 
 	if (!buf || len == 0) {
-		return -EINVAL;
-	}
-
-	sock = modem_socket_from_fd(&mdata.socket_config, sock_fd);
-	if (!sock) {
-		LOG_ERR("Can't locate socket from fd:%d", sock_fd);
 		return -EINVAL;
 	}
 
@@ -337,25 +335,13 @@ static ssize_t offload_recvfrom(int sock_fd, void *buf, short int len,
 	return (read);
 }
 
-static ssize_t offload_recv(int sock_fd, void *buf, size_t max_len, int flags)
-{
-	return offload_recvfrom(sock_fd, buf, (short int)max_len, flags,
-				NULL, NULL);
-}
-
-static ssize_t offload_sendto(int sock_fd, const void *buf, size_t len,
+static ssize_t offload_sendto(void *obj, const void *buf, size_t len,
 			      int flags, const struct sockaddr *to,
 			      socklen_t tolen)
 {
-	struct modem_socket *sock;
+	struct modem_socket *sock = (struct modem_socket *) obj;
 
 	if (!buf || len == 0) {
-		return -EINVAL;
-	}
-
-	sock = modem_socket_from_fd(&mdata.socket_config, sock_fd);
-	if (!sock) {
-		LOG_ERR("Can't locate socket from fd:%d", sock_fd);
 		return -EINVAL;
 	}
 
@@ -368,22 +354,71 @@ static ssize_t offload_sendto(int sock_fd, const void *buf, size_t len,
 	return send_socket_data(sock, to, buf, len, MDM_CMD_TIMEOUT);
 }
 
-static ssize_t offload_send(int sock_fd, const void *buf, size_t len, int flags)
+static int offload_ioctl(void *obj, unsigned int request, va_list args)
 {
-	return offload_sendto(sock_fd, buf, len, flags, NULL, 0U);
+	switch (request) {
+	/* Handle close specifically. */
+	case ZFD_IOCTL_CLOSE:
+		return offload_close((struct modem_socket *)obj);
+
+	case ZFD_IOCTL_POLL_PREPARE:
+		return -EXDEV;
+
+	case ZFD_IOCTL_POLL_UPDATE:
+		return -EOPNOTSUPP;
+
+	case ZFD_IOCTL_POLL_OFFLOAD: {
+		struct zsock_pollfd *fds;
+		int nfds;
+		int timeout;
+
+		fds = va_arg(args, struct zsock_pollfd *);
+		nfds = va_arg(args, int);
+		timeout = va_arg(args, int);
+
+		return offload_poll(fds, nfds, timeout);
+	}
+
+	default:
+		errno = EINVAL;
+		return -1;
+	}
 }
 
-static const struct socket_offload modem_socket_offload = {
-	.socket = offload_socket,
-	.close = offload_close,
+static ssize_t offload_read(void *obj, void *buffer, size_t count)
+{
+	return offload_recvfrom(obj, buffer, count, 0, NULL, 0);
+}
+
+static ssize_t offload_write(void *obj, const void *buffer, size_t count)
+{
+	return offload_sendto(obj, buffer, count, 0, NULL, 0);
+}
+
+static const struct socket_op_vtable offload_socket_fd_op_vtable = {
+	.fd_vtable = {
+		.read = offload_read,
+		.write = offload_write,
+		.ioctl = offload_ioctl,
+	},
 	.bind = offload_bind,
 	.connect = offload_connect,
-	.poll = offload_poll,
-	.recv = offload_recv,
-	.recvfrom = offload_recvfrom,
-	.send = offload_send,
 	.sendto = offload_sendto,
+	.recvfrom = offload_recvfrom,
+	.listen = NULL,
+	.accept = NULL,
+	.sendmsg = NULL,
+	.getsockopt = NULL,
+	.setsockopt = NULL,	
 };
+
+static bool offload_is_supported(int family, int type, int proto)
+{
+	return true;
+}
+
+NET_SOCKET_REGISTER(sim800, AF_UNSPEC, offload_is_supported,
+		    offload_socket);
 
 static int net_offload_dummy_get(sa_family_t family,
 				 enum net_sock_type type,
@@ -440,7 +475,6 @@ static void modem_net_iface_init(struct net_if *iface)
 	net_if_set_link_addr(iface, modem_get_mac(dev),
 			     sizeof(data->mac_addr),
 			     NET_LINK_ETHERNET);
-	socket_offload_register(&modem_socket_offload);
 	data->net_iface = iface;
 }
 
@@ -457,7 +491,9 @@ static int modem_setup(void)
 	iface_data.rx_rb_buf_len = sizeof(iface_rb_buf);
 
 	/* Use the Modem Interface to setup UART. */
-	modem_iface_uart_init(&iface, &iface_data, DT_INST_0_SIMCOMM_SIM80X_BUS_NAME);
+	modem_iface_uart_init(&iface, 
+		&iface_data, 
+		DT_ST_STM32_USART_40004400_SIMCOMM_SIM80X_40004400_SIM80X_BUS_NAME);
 
 	/* Context assignments. */
 	mctx.iface             = iface;
@@ -508,7 +544,8 @@ static int modem_init(struct device *dev)
 	mdata.socket_config.base_socket_num = MDM_BASE_SOCKET_NUM;
 
 	/* Socket Initialization. */
-	ret = modem_socket_init(&mdata.socket_config);
+	ret = modem_socket_init(&mdata.socket_config,
+				&offload_socket_fd_op_vtable);
 
 	/* Init successful? */
 	if (ret >= 0) {
@@ -552,9 +589,16 @@ static int modem_init(struct device *dev)
 					/* Get the revision. */
 					(void) sim800_modem->ops->model(sim800_modem,
 							               (char *) mdata.mdm_revision, MDM_REVISION_LENGTH);
-
+					
 					/* Get the RSSI. */
-					mctx.data_rssi = sim800_modem->ops->rssi(sim800_modem);
+					for (mctx.data_rssi = 0; 
+						mctx.data_rssi < CONFIG_MODEM_MINIMUM_RSSI; 
+						mctx.data_rssi = sim800_modem->ops->rssi(sim800_modem)) {
+						LOG_INF("RSSI: %d", mctx.data_rssi);
+						k_sleep(K_SECONDS(1));		
+					}
+					LOG_INF("RSSI: %d", mctx.data_rssi);
+
 		    	}
 		    }
 	    }
@@ -565,7 +609,12 @@ static int modem_init(struct device *dev)
 }
 
 /* Create the SIM80x device. */
-NET_DEVICE_OFFLOAD_INIT(modem_sara, CONFIG_MODEM_SIM80X_NAME,
-						modem_init, &mdata, NULL,
-						CONFIG_MODEM_SIM80X_INIT_PRIORITY, &api_funcs,
-						MDM_MAX_DATA_LENGTH);
+NET_DEVICE_OFFLOAD_INIT(sim800, 
+			CONFIG_MODEM_SIM80X_NAME,
+			modem_init,
+			device_pm_control_nop,
+			&mdata,
+			NULL,
+			CONFIG_MODEM_SIM80X_INIT_PRIORITY, 
+			&api_funcs,
+			MDM_MAX_DATA_LENGTH);

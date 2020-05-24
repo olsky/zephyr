@@ -11,6 +11,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <logging/log.h>
+LOG_MODULE_REGISTER(ATTENTIVE_PARSER, CONFIG_MODEM_LOG_LEVEL);
 
 enum at_parser_state {
     STATE_IDLE,
@@ -174,7 +176,7 @@ static void parser_handle_line(struct at_parser *parser)
     size_t len = parser->buf_used - parser->buf_current;
 
     /* Log the received line. */
-    printf("< '%.*s'\n", (int) len, line);
+    LOG_DBG("<- '%s'", log_strdup(line));
 
     /* Determine response type. */
     enum at_response_type type = AT_RESPONSE_UNKNOWN;

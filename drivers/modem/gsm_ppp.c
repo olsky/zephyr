@@ -238,8 +238,8 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_imei)
 }
 #endif /* CONFIG_MODEM_SHELL */
 
-#ifndef CONFIG_MODEM_GSM_PPP_MINIMUM_RSSI
-#define CONFIG_MODEM_GSM_PPP_MINIMUM_RSSI 0
+#ifndef CONFIG_MODEM_MINIMUM_RSSI
+#define CONFIG_MODEM_MINIMUM_RSSI 0
 #endif
 MODEM_CMD_DEFINE(on_cmd_at_rssi)
 {
@@ -249,9 +249,10 @@ MODEM_CMD_DEFINE(on_cmd_at_rssi)
 		return 0;
 	}
 	
-	LOG_INF("RSSI %s, %s", log_strdup(argv[0]), log_strdup(argv[1]));
+	const int rssi = atoi(argv[0]);
+	LOG_INF("RSSI: %d", rssi);
 
-	if (atoi(argv[0]) < CONFIG_MODEM_GSM_PPP_MINIMUM_RSSI)
+	if (rssi < CONFIG_MODEM_MINIMUM_RSSI)
 		modem_cmd_handler_set_error(data, -EINVAL);
 	else
 		modem_cmd_handler_set_error(data, 0);

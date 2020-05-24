@@ -123,21 +123,22 @@ static void handle_urc(const char *line, size_t len, void *arg)
     /* printf("[sim800@%p] urc: %.*s\n", priv, (int) len, line); */
 
     /* GPS ? */
-    if (!strncmp(line, "$GPRMC", 6)) {
-
-    	/* GPS data is unavailable. */
-    	atomic_set(gps_data_available, false);
-
-        /* Init GPS */
-        gps_init(&hgps);
-
-    	/* Ask the NMEA library to parse this string. */
-    	gps_process(&hgps, (const void*) line, len);
-
-    	/* GPS data is available. */
-    	atomic_set(gps_data_available, true);
-    }
-
+    
+//    if (!strncmp(line, "$GPRMC", 6)) {
+//
+//    	/* GPS data is unavailable. */
+//    	atomic_set(gps_data_available, false);
+//
+//        /* Init GPS */
+//        gps_init(&hgps);
+//
+//    	/* Ask the NMEA library to parse this string. */
+//    	gps_process(&hgps, (const void*) line, len);
+//
+//    	/* GPS data is available. */
+//    	atomic_set(gps_data_available, true);
+//    }
+    
     /*
     if (sscanf(line, "+FTPGET: 1,%d", &priv->ftpget1_status) == 1)
         return; */
@@ -368,7 +369,7 @@ static enum at_response_type scanner_cifsr(const char *line, size_t len, void *a
 {
     (void) len;
     (void) arg;
-
+    BUILD_ASSERT(CONFIG_NEWLIB_LIBC, "sscanf implementation is required.");
     /* Accept an IP address as an OK response. */
     int ip[4];
     if (sscanf(line, "%d.%d.%d.%d", &ip[0], &ip[1], &ip[2], &ip[3]) == 4)
@@ -482,9 +483,7 @@ static int sim800_socket_send(struct cellular *modem, int connid, const void *bu
     /* Request transmission. */
     at_set_timeout(modem->at, SET_TIMEOUT);
     at_expect_dataprompt(modem->at);
-/*  printk("Socket Send sees connection id: %d\r\n", connid);
-    at_command_simple(modem->at, "AT+CIPSEND=%d,%zu", connid, amount); */
-    at_command_simple(modem->at, "AT+CIPSEND=%d", connid);
+    at_command_simple(modem->at, "AT+CIPSEND=%d,%u", connid, amount);
 
     /* Send raw data. */
     at_set_command_scanner(modem->at, scanner_cipsend);

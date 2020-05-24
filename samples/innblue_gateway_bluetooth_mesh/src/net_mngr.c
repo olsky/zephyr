@@ -1,16 +1,25 @@
 #include <assert.h>
-#include <../drivers/modem/modem_context.h>
+
 #include <device.h>
 #include "net_mngr.h"
 #include <logging/log.h>
 #include <logging/log_ctrl.h>
 #include <power/reboot.h>
+
+#if defined(CONFIG_MODEM_GSM_PPP)
 #include <net/ppp.h>
+#include <../drivers/modem/modem_context.h>
+#elif defined(CONFIG_MODEM_SIM800)
+#include <../drivers/modem/simcomm-sim80x.h>
+#endif
+
 
 LOG_MODULE_REGISTER(net_mngr, 3);
 
+#if defined(CONFIG_MODEM_GSM_PPP)
 static const char* get_guid ()
 {
+
 	BUILD_ASSERT(CONFIG_MODEM_SHELL, 
 		"CONFIG_MODEM_SHELL=y required to obtain EMEI");  
 
@@ -34,6 +43,22 @@ static bool is_network_ready ()
 
 	return ppp_ctx && ppp_ctx->is_network_up;
 }
+#elif defined(CONFIG_MODEM_SIM800)
+static const char* get_guid()
+{
+	struct device *modem = device_get_binding(CONFIG_MODEM_SIM80X_NAME);
+	__ASSERT(modem, "Cannot find modem!");
+	
+	struct modem_data *mdm_data = (struct modem_data *) modem->driver_data;
+	__ASSERT(modem_data.mdm_imei, "EMEI is empty!");
+	return mdm_data->mdm_imei;		
+}
+
+static bool is_network_ready ()
+{
+	return true;
+}
+#endif
 
 static void restart ()
 {

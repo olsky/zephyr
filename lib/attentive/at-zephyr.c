@@ -17,12 +17,13 @@
 #include <drivers/gpio.h>
 #include <device.h>
 #include <init.h>
+#include <logging/log.h>
+LOG_MODULE_REGISTER(AT_ZEPHYR, CONFIG_MODEM_LOG_LEVEL);
 
 /* Net files (probably not required). */
 #include <net/net_if.h>
 #include <net/net_offload.h>
 #include <net/socket_offload.h>
-#include <net/socket_offload_ops.h>
 
 /* Modem files. */
 #include "../drivers/modem/modem_context.h"
@@ -250,7 +251,7 @@ const char *at_command(struct at *at, const char *format, ...)
         errno = ENOMEM;
         return NULL;
     }
-
+    LOG_DBG("-> '%s'", log_strdup(line));
     /* Append modem-style newline. */
     line[len++] = '\r';
 

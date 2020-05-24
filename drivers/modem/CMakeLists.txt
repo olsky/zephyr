@@ -19,7 +19,6 @@ endif()
 
 if(CONFIG_MODEM_SIM800)
 	zephyr_library_include_directories(${ZEPHYR_BASE}/subsys/net/ip)
-	zephyr_library_include_directories(${ZEPHYR_BASE}/ext/lib/attentive/include)
 	zephyr_library_sources(simcomm-sim80x.c)
 endif()
 

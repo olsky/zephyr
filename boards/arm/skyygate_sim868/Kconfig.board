@@ -7,7 +7,7 @@ config BOARD_SKYYGATE_SIM868
 	bool "InnBlue Skyygate SIM868 board"
 	depends on SOC_STM32L475XX
 
-config MODEM_GSM_PPP_MINIMUM_RSSI
+config MODEM_MINIMUM_RSSI
 	int "Minimum RSSI"
 	range 0 99
 	default 10
