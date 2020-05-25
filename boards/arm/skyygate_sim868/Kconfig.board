@@ -11,7 +11,7 @@ config MODEM_MINIMUM_RSSI
 	int "Minimum RSSI"
 	range 0 99
 	default 10
-	depends on BOARD_SKYYGATE_SIM868 && MODEM_GSM_PPP
+	depends on BOARD_SKYYGATE_SIM868 && (MODEM_GSM_PPP || MODEM_SIM800)
 	help 
 		The minimum RSSI to be measured by GSM modem before the network is initialized.
 		The network won't be started until the RSSI is reached. For details see AT+CSQ
