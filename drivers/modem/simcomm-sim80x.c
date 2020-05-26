@@ -84,7 +84,7 @@ static int send_socket_data(struct modem_socket *sock,
 
 	/* Op completed successfully? */
 	if (ret == buf_len) {
-		LOG_INF("data sent with len=<%d>", buf_len);
+		LOG_DBG("data sent with len=<%d>", buf_len);
 	} else {
 		LOG_ERR("data sent failure");
 	}
@@ -328,7 +328,7 @@ static ssize_t offload_recvfrom(void *obj, void *buf, size_t len,
 
 	} while (true);
 
-	LOG_INF("SIM800: recvfrom got %d data", read);
+	LOG_DBG("SIM800: recvfrom got %d data", read);
 
 	/* clear socket data */
 	sock->data = NULL;

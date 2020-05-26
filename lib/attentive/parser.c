@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <logging/log.h>
-LOG_MODULE_REGISTER(ATTENTIVE_PARSER, CONFIG_MODEM_LOG_LEVEL);
+LOG_MODULE_REGISTER(parser, CONFIG_MODEM_LOG_LEVEL);
 
 enum at_parser_state {
     STATE_IDLE,

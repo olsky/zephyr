@@ -246,6 +246,10 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 		LOG_INF("MQTT ping response received."); 
 		break;
 
+	case MQTT_EVT_SUBACK:
+		LOG_INF("MQTT subscription acknowledged.");
+		break;	
+
 	default:
 		LOG_INF("MQTT event received %d", evt->type);
 		break;

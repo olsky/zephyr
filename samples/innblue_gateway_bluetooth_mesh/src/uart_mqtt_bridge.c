@@ -55,13 +55,8 @@ static void uart_isr(struct device *x)
 	struct net_buf *nbuf;
 
 	while (uart_irq_update(uart) && uart_irq_is_pending(uart)) {
-		if (!uart_irq_rx_ready(uart)) {
-			if (uart_irq_tx_ready(uart))
-				printk("transmit ready\n");
-			else
-				printk("spurious interrupt\n");
-			break;
-		}
+		if (!uart_irq_rx_ready(uart))
+			return;
 
 		while (uart_fifo_read(uart, &rx_byte, 1)) {
 			if (rx_byte != '\r') {

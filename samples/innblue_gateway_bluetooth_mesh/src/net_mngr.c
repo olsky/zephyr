@@ -43,6 +43,14 @@ static bool is_network_ready ()
 
 	return ppp_ctx && ppp_ctx->is_network_up;
 }
+
+static void restart ()
+{
+	LOG_PANIC();
+	LOG_ERR("Restarting the device to restart networking stack.");
+	sys_reboot(SYS_REBOOT_COLD);
+	CODE_UNREACHABLE;
+}
 #elif defined(CONFIG_MODEM_SIM800)
 static const char* get_guid()
 {
@@ -58,15 +66,13 @@ static bool is_network_ready ()
 {
 	return true;
 }
-#endif
+
 
 static void restart ()
 {
-	LOG_PANIC();
-	LOG_ERR("Restarting the device to restart networking stack.");
-	sys_reboot(SYS_REBOOT_COLD);
-	CODE_UNREACHABLE;
+	LOG_ERR("Restarting network.");
 }
+#endif
 
 const net_mngr_t net_mngr = {
 	.get_guid = get_guid,

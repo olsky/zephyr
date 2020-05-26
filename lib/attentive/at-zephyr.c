@@ -18,7 +18,7 @@
 #include <device.h>
 #include <init.h>
 #include <logging/log.h>
-LOG_MODULE_REGISTER(AT_ZEPHYR, CONFIG_MODEM_LOG_LEVEL);
+LOG_MODULE_REGISTER(at_zephyr, CONFIG_MODEM_LOG_LEVEL);
 
 /* Net files (probably not required). */
 #include <net/net_if.h>
