@@ -277,7 +277,7 @@ static int publish(struct mqtt_client *client, char *payload)
 #define RC_STR(rc) ((rc) == 0 ? "OK" : "ERROR")
 
 #define PRINT_RESULT(func, rc) \
-	LOG_INF("%s: %d <%s>", (func), rc, RC_STR(rc))
+	LOG_INF("%s: %d <%s>", (func), rc, log_strdup(RC_STR(rc)))
 
 static void broker_init(void)
 {
@@ -423,7 +423,7 @@ static void client_init(struct mqtt_client *client)
 
 static bool mqtt_sub(void)
 {
-	LOG_INF("try to subscribe to %s", CONFIG_MQTT_SUB_TOPIC);
+	LOG_INF("try to subscribe to %s", log_strdup(CONFIG_MQTT_SUB_TOPIC));
 	struct mqtt_topic subscribe_topics[] = {
 		{
 			.topic = {
@@ -547,7 +547,7 @@ static bool process_input()
 
 static bool publish_msg (char *message)
 {
-	LOG_INF("try to publish mqtt_publish: %s", message);
+	LOG_INF("try to publish mqtt_publish: %s", log_strdup(message));
 	const int rc = publish(&client_ctx, message);
 	PRINT_RESULT("mqtt_publish", rc);
 	return 0 == rc;
