@@ -5,10 +5,12 @@
  */
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(SIM800, CONFIG_MODEM_LOG_LEVEL);
+LOG_MODULE_REGISTER(simcomm_sim80x, CONFIG_MODEM_LOG_LEVEL);
 
 /* SIM driver header file. */
 #include "simcomm-sim80x.h"
+
+#define MDM_SENDMSG_SLEEP       K_MSEC(1)
 
 /* Static data to bind the interface driver with Modem Context. */
 static struct modem_data    mdata;
@@ -291,48 +293,23 @@ static ssize_t offload_recvfrom(void *obj, void *buf, size_t len,
 				socklen_t *fromlen)
 {
 	struct modem_socket *sock = (struct modem_socket *) obj;
-	short int read = 0;
 
 	if (!buf || len == 0) {
 		return -EINVAL;
 	}
 
-	int timeout = 3;
+	const int read = sim800_modem->ops->socket_recv(
+				sim800_modem, 
+				(sock->id-7), 
+				buf, 
+				len, 
+				0);
+	if (0 == read) {
+		errno = EAGAIN;
+		return -1;
+	}
 
-	do
-	{
-		/* TODO: We should keep a per-socket buffer and store data in that buffer. This is because
-		 * when we request data from the SIM80x module, it can return more data than required.
-		 * The application consumes the required data and the rest is lost. This should NOT
-		 * happen.
-		 *
-		 * See the SARA-R4 for reference. What does it do? */
-
-		k_sleep(K_MSEC(50));
-
-		/* Ask attentive to give us the data. */
-		read += sim800_modem->ops->socket_recv(sim800_modem, (sock->id-7), buf, len, 0);
-
-		timeout --;
-
-		/* If we have the required data, lets exit with no error. */
-		if (read == len) {
-			break;
-		}
-
-		/* If we have timed out, lets exit with timeout error. */
-		if (timeout == 0) {
-			errno = EAGAIN; read = -1;
-			break;
-		}
-
-	} while (true);
-
-	LOG_DBG("SIM800: recvfrom got %d data", read);
-
-	/* clear socket data */
-	sock->data = NULL;
-	return (read);
+	return read;
 }
 
 static ssize_t offload_sendto(void *obj, const void *buf, size_t len,
@@ -395,6 +372,40 @@ static ssize_t offload_write(void *obj, const void *buffer, size_t count)
 	return offload_sendto(obj, buffer, count, 0, NULL, 0);
 }
 
+static ssize_t offload_sendmsg(void *obj, const struct msghdr *msg, int flags)
+{
+	ssize_t sent = 0;
+	int rc;
+
+	LOG_DBG("msg_iovlen:%d flags:%d", msg->msg_iovlen, flags);
+
+	for (int i = 0; i < msg->msg_iovlen; i++) {
+
+		const char *buf = msg->msg_iov[i].iov_base;
+		size_t len = msg->msg_iov[i].iov_len;
+
+		while (len > 0) {
+			rc = offload_sendto(obj, buf, len, flags,
+							msg->msg_name,
+							msg->msg_namelen);
+			if (rc < 0) {
+				if (rc == -EAGAIN) {
+					k_sleep(MDM_SENDMSG_SLEEP);
+				} else {
+					sent = rc;
+					break;
+				}
+			} else {
+				sent += rc;
+				buf += rc;
+				len -= rc;
+			}
+		}
+	}
+
+	return (ssize_t)sent;
+}
+
 static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	.fd_vtable = {
 		.read = offload_read,
@@ -407,7 +418,7 @@ static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	.recvfrom = offload_recvfrom,
 	.listen = NULL,
 	.accept = NULL,
-	.sendmsg = NULL,
+	.sendmsg = offload_sendmsg,
 	.getsockopt = NULL,
 	.setsockopt = NULL,	
 };
