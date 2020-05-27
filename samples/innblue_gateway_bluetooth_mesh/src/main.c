@@ -53,8 +53,6 @@ void main(void)
 	while (1) {
 		if (!mqtt_publisher.process_input())
 			net_mngr.restart();
-
-		k_sleep(K_SECONDS(1));
 	}
 }
 
