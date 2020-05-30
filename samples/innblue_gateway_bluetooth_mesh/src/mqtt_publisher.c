@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <assert.h>
 #include "board_lights.h"
 #include <logging/log.h>
 LOG_MODULE_REGISTER(mqtt_publisher, LOG_LEVEL_DBG);
@@ -27,6 +28,9 @@ static u8_t publish_topic[256];
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[APP_MQTT_BUFFER_SIZE];
 static u8_t tx_buffer[APP_MQTT_BUFFER_SIZE];
+
+K_SEM_DEFINE(sem_puback, 0, 1);
+static u16_t pub_msg_id = 0;
 
 #if defined(CONFIG_MQTT_LIB_WEBSOCKET)
 /* Making RX buffer large enough that the full IPv6 packet can fit into it */
@@ -165,8 +169,15 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 			break;
 		}
 
-		LOG_INF("PUBACK packet id: %u", evt->param.puback.message_id);
-
+		if (pub_msg_id == evt->param.puback.message_id) {
+			LOG_INF("PUBACK: msgid %u matched.", 
+				evt->param.puback.message_id);
+			k_sem_give(&sem_puback);
+		} else {
+			LOG_ERR("PUBACK: msgid %u received, %u expected.", 
+				evt->param.puback.message_id,
+				pub_msg_id);
+		}
 		break;
 
 	case MQTT_EVT_PUBREC:
@@ -256,7 +267,10 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 	}
 }
 
-static int publish(struct mqtt_client *client, char *payload)
+static int publish(struct mqtt_client *client, 
+		char *payload, 
+		u16_t msg_id, 
+		bool is_duplicate)
 {
 	struct mqtt_publish_param param;
 
@@ -267,8 +281,8 @@ static int publish(struct mqtt_client *client, char *payload)
 	param.message.payload.data = payload;
 	param.message.payload.len =
 			strlen(param.message.payload.data);
-	param.message_id = sys_rand32_get();
-	param.dup_flag = 0U;
+	param.message_id = msg_id;
+	param.dup_flag = is_duplicate;
 	param.retain_flag = 0U;
 
 	return mqtt_publish(client, &param);
@@ -547,10 +561,25 @@ static bool process_input()
 
 static bool publish_msg (char *message)
 {
+	BUILD_ASSERT(1==MQTT_QOS, "The code expects QoS 1");
+
 	LOG_INF("try to publish mqtt_publish: %s", log_strdup(message));
-	const int rc = publish(&client_ctx, message);
+	const u16_t msg_id = sys_rand32_get(); 
+	int rc = publish(&client_ctx, message, msg_id, false);
 	PRINT_RESULT("mqtt_publish", rc);
-	return 0 == rc;
+	if (0 != rc)
+		return false;
+
+	pub_msg_id = msg_id;
+	while (k_sem_take(&sem_puback, K_MSEC(PUB_RETRY_TIMEOUT_MSECS))) {
+		LOG_ERR("No ack received for msg id %u, retrying", msg_id);
+		rc = publish(&client_ctx, message, msg_id, true);
+		PRINT_RESULT("mqtt_publish", rc);
+		// If publish failed still wait for a response then
+		// try again. So that the duplicate flag stays set. 
+	}
+	
+	return true;
 }
 
 static bool set_subscribe_callback(subscribe_cb_t subscribe_cb)

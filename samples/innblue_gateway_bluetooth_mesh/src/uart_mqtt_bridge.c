@@ -26,8 +26,10 @@ static void uart_to_mqtt_thread(void *p1, void *p2, void *p3)
 	while (1) {
 		struct net_buf *buf;
 		buf = net_buf_get(&m_queue_to_mqtt, K_FOREVER);
-		if (m_write_to_mqtt && m_write_to_mqtt(buf->data))
-			board_lights.blink_mqtt(3);
+		while (!m_write_to_mqtt || !m_write_to_mqtt(buf->data))
+			k_sleep(K_SECONDS(5));
+		
+		board_lights.blink_mqtt(3);
 		net_buf_unref(buf);
 		k_yield();
 	}
