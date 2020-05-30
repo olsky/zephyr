@@ -251,7 +251,9 @@ static int offload_connect(void *obj, const struct sockaddr *addr,
 			                         modem_context_sprint_ip_addr(addr), dst_port);
 
 	if (ret < 0) {
-		LOG_ERR("socket_connect request for addr: %s, port: %d failed", modem_context_sprint_ip_addr(addr), dst_port);
+		LOG_ERR("socket_connect request for addr: %s, port: %d failed", 
+			log_strdup(modem_context_sprint_ip_addr(addr)), 
+			dst_port);
 	}
 
 	return ret;
