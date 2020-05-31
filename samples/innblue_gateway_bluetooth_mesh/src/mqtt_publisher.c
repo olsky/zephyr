@@ -212,21 +212,22 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 
 	case MQTT_EVT_PUBLISH:
 		if (evt->result != 0) {
-			printk("MQTT PUBLISH error %d\n", evt->result);
+			LOG_ERR("MQTT PUBLISH error %d\n", evt->result);
 			break;
 		}
-
-		LOG_INF("PUBLISH packet id: %u", evt->param.publish.message_id);
 
 		u8_t d[33];
 		int len = evt->param.publish.message.payload.len;
 		int bytes_read;
 
-		LOG_INF("MQTT publish received %d, %d bytes",
-			  evt->result, len);
-		LOG_INF("   id: %d, qos: %d",
-			  evt->param.publish.message_id,
-			  evt->param.publish.message.topic.qos);
+		if (evt->param.publish.message.topic.qos 
+			> MQTT_QOS_0_AT_MOST_ONCE) 
+			LOG_INF("MsgId: %d, QoS: %d, bytes: %u",
+				evt->param.publish.message_id,
+			  	evt->param.publish.message.topic.qos,
+			  	len);
+		else
+			LOG_INF("Msg with QoS: 0, bytes: %u", len);
 
 		/* assuming the config message is textual */
 		while (len) {
@@ -235,7 +236,7 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 							len >= 32 ? 32 : len);
 
 			if (bytes_read < 0 && bytes_read != -EAGAIN) {
-				LOG_ERR("failure to read payload");
+				LOG_ERR("Failure to read payload");
 				break;
 			}
 
@@ -247,10 +248,14 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 			len -= bytes_read;
 		}
 
-		struct mqtt_puback_param puback;
-
-		puback.message_id = evt->param.publish.message_id;
-		mqtt_publish_qos1_ack(&client_ctx, &puback);
+		/* Acknowledge only when QoS requires and hence message id 
+		 * is present.                                              */
+		if (evt->param.publish.message.topic.qos 
+			> MQTT_QOS_0_AT_MOST_ONCE) {
+			struct mqtt_puback_param puback;
+			puback.message_id = evt->param.publish.message_id;
+			mqtt_publish_qos1_ack(&client_ctx, &puback);
+		}
 		break;
 
 	case MQTT_EVT_PINGRESP:
