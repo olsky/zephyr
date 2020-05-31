@@ -126,13 +126,7 @@ static void clear_fds(void)
 	nfds = 0;
 }
 
-#ifdef CONFIG_MODEM_SIM800
-static void poll_when_transport_avail(int timeout_ms)
-{
-	ARG_UNUSED(timeout_ms);
-	k_yield(); // polling is done when socket is read
-}
-#else
+#ifndef CONFIG_MODEM_SIM800
 static void poll_when_transport_avail(int timeout_ms)
 {
 	if (!nfds) {
@@ -144,7 +138,6 @@ static void poll_when_transport_avail(int timeout_ms)
 		LOG_ERR("poll error: %d", errno);
 }
 #endif
-
 
 subscribe_cb_t m_subscribe_cb = NULL;
 
@@ -360,7 +353,7 @@ static int init_client_id(const char *client_id)
 			(*c < 'a' || *c > 'z') && 
 			(*c < 'A' || *c > 'Z')) {
 			LOG_ERR("MQTT: client_id '%s' has invalid characters, "
-				"see MQTT Spec MQTT-3.1.3-5.", client_id);
+				"see MQTT Spec MQTT-3.1.3-5.", log_strdup(client_id));
 			return  EINVAL;	
 		}
 		
@@ -374,11 +367,8 @@ static int init_client_id(const char *client_id)
 		return EINVAL;
 	}
 		
-	LOG_INF("\tpub-topic for this gateway: %s\n", publish_topic);
-	LOG_INF("innblue > %s [%d] > mqtt client id: %s\n",
-		__func__,
-		__LINE__,
-		client_id_buf);
+	LOG_INF("Pub-topic: %s", log_strdup(publish_topic));
+	LOG_INF("MQTT Client Id: %s", log_strdup(client_id_buf));
 
 	return 0;
 }
@@ -495,8 +485,11 @@ static int try_to_connect(struct mqtt_client *client)
 		}
 
 		prepare_fds(client);
-
+#ifdef CONFIG_MODEM_SIM800
+		k_sleep(K_SECONDS(5));
+#else 
 		poll_when_transport_avail(3000);
+#endif
 		mqtt_input(client);
 
 		if (!connected) {
@@ -518,14 +511,17 @@ static int process_mqtt_and_sleep(struct mqtt_client *client, int timeout)
 	int rc;
 
 	while (remaining > 0 && connected) {
+#ifndef CONFIG_MODEM_SIM800
 		poll_when_transport_avail(remaining);
-
+#endif
 		rc = mqtt_input(client);
 		if (rc != 0) {
 			PRINT_RESULT("mqtt_input", rc);
 			return rc;
 		}
-
+#ifdef CONFIG_MODEM_SIM800
+		k_yield(); // for SIM800 polling is done in mqtt_input
+#endif
 		remaining = timeout + start_time - k_uptime_get();
 	}
 
