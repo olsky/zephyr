@@ -126,14 +126,24 @@ static void clear_fds(void)
 	nfds = 0;
 }
 
-static void wait(int timeout)
+#ifdef CONFIG_MODEM_SIM800
+static void poll_when_transport_avail(int timeout_ms)
 {
-	if (nfds > 0) {
-		if (poll(fds, nfds, timeout) < 0) {
-			printk("poll error: %d", errno);
-		}
-	}
+	ARG_UNUSED(timeout_ms);
+	k_yield(); // polling is done when socket is read
 }
+#else
+static void poll_when_transport_avail(int timeout_ms)
+{
+	if (!nfds) {
+		k_sleep(K_MSEC(timeout_ms));
+		return;
+	}
+
+	if (poll(fds, nfds, timeout_ms) < 0) 
+		LOG_ERR("poll error: %d", errno);
+}
+#endif
 
 
 subscribe_cb_t m_subscribe_cb = NULL;
@@ -146,17 +156,17 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
 		if (evt->result != 0) {
-			printk("MQTT connect failed %d\n", evt->result);
+			LOG_ERR("MQTT connect failed %d\n", evt->result);
 			break;
 		}
 
 		connected = true;
-		printk("MQTT client connected!\n");
+		LOG_INF("MQTT client connected!\n");
 
 		break;
 
 	case MQTT_EVT_DISCONNECT:
-		printk("MQTT client disconnected %d\n", evt->result);
+		LOG_INF("MQTT client disconnected %d\n", evt->result);
 
 		connected = false;
 		clear_fds();
@@ -165,7 +175,7 @@ static void mqtt_evt_handler(struct mqtt_client *const client,
 
 	case MQTT_EVT_PUBACK:
 		if (evt->result != 0) {
-			printk("MQTT PUBACK error %d\n", evt->result);
+			LOG_ERR("MQTT PUBACK error %d\n", evt->result);
 			break;
 		}
 
@@ -333,13 +343,13 @@ static void broker_init(void)
 static int init_client_id(const char *client_id) 
 {
 	if (!client_id) {
-		printk("MQTT: provide client_id.");
+		LOG_ERR("MQTT: provide client_id.");
 		return EINVAL;
 	}
 	
 	const size_t len = strlen(client_id);
 	if (len < 1 || len > CLIENT_ID_MAX_LENGTH) {
-		printk("MQTT: client_id is either blank or over "  
+		LOG_ERR("MQTT: client_id is either blank or over "  
 			STRINGIFY(CLIENT_ID_MAX_LENGTH) 
 			" symbols, see MQTT Spec MQTT-3.1.3-5.");
 		return EINVAL;
@@ -349,7 +359,7 @@ static int init_client_id(const char *client_id)
 		if ((*c < '0' || *c > '9') && 
 			(*c < 'a' || *c > 'z') && 
 			(*c < 'A' || *c > 'Z')) {
-			printk("MQTT: client_id '%s' has invalid characters, "
+			LOG_ERR("MQTT: client_id '%s' has invalid characters, "
 				"see MQTT Spec MQTT-3.1.3-5.", client_id);
 			return  EINVAL;	
 		}
@@ -360,12 +370,12 @@ static int init_client_id(const char *client_id)
 			sizeof(publish_topic),
 			CONFIG_MQTT_PUB_TOPIC, 
 			client_id)) {
-		printk("MQTT: publish topic is too long.");  
+		LOG_ERR("MQTT: publish topic is too long.");  
 		return EINVAL;
 	}
 		
-	printk("\tpub-topic for this gateway: %s\n", publish_topic);
-	printk("innblue > %s [%d] > mqtt client id: %s\n",
+	LOG_INF("\tpub-topic for this gateway: %s\n", publish_topic);
+	LOG_INF("innblue > %s [%d] > mqtt client id: %s\n",
 		__func__,
 		__LINE__,
 		client_id_buf);
@@ -486,7 +496,7 @@ static int try_to_connect(struct mqtt_client *client)
 
 		prepare_fds(client);
 
-		wait(3000);
+		poll_when_transport_avail(3000);
 		mqtt_input(client);
 
 		if (!connected) {
@@ -508,13 +518,7 @@ static int process_mqtt_and_sleep(struct mqtt_client *client, int timeout)
 	int rc;
 
 	while (remaining > 0 && connected) {
-		wait(remaining);
-
-		rc = mqtt_live(client);
-		if (rc != 0 && rc != -EAGAIN /* Zephyr changed API in v2.2 */) {
-			PRINT_RESULT("mqtt_live failed", rc);
-			return rc;
-		}
+		poll_when_transport_avail(remaining);
 
 		rc = mqtt_input(client);
 		if (rc != 0) {
@@ -523,6 +527,14 @@ static int process_mqtt_and_sleep(struct mqtt_client *client, int timeout)
 		}
 
 		remaining = timeout + start_time - k_uptime_get();
+	}
+
+	if (connected) {
+		rc = mqtt_live(client);
+		if (rc != 0 && rc != -EAGAIN /* Zephyr changed API in v2.2 */) {
+			PRINT_RESULT("mqtt_live failed", rc);
+			return rc;
+		}
 	}
 
 	return 0;
