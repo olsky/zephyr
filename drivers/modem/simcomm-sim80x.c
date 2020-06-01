@@ -559,66 +559,60 @@ static int modem_init(struct device *dev)
 	/* Socket Initialization. */
 	ret = modem_socket_init(&mdata.socket_config,
 				&offload_socket_fd_op_vtable);
+	if (ret < 0)
+		return ret;
 
-	/* Init successful? */
-	if (ret >= 0) {
+	/* Allocate an instance of the SIM800 modem. */
+	sim800_modem = cellular_sim800_alloc();
+	if (!sim800_modem)
+		return -ENXIO;
 
-		/* Allocate an instance of the SIM800 modem. */
-	    sim800_modem = cellular_sim800_alloc();
+	/* Allocate an instance of the AT hardware device. */
+	sim800_at = at_alloc_zephyr();
+	if (!sim800_at) 
+		return -ENXIO;
 
-	    /* Valid Modem Instance? */
-	    if (sim800_modem != NULL) {
+	/* Perform modem setup. */
+	modem_setup();
 
-		    /* Allocate an instance of the AT hardware device. */
-		    sim800_at    = at_alloc_zephyr();
+	/* AT layer needs info about UART. */
+	sim800_at->arg = (void *) &iface;
 
-		    /* Valid "AT" Instance? */
-		    if (sim800_at != NULL) {
+	/* Open this "AT" device. */
+	if (at_open(sim800_at) != 0)
+		return -ENXIO;
 
-		    	/* Perform modem setup. */
-		    	modem_setup();
+	/* Attach Modem with "AT" instance. */
+	ret = cellular_attach(sim800_modem, sim800_at, CONFIG_MODEM_SIM80X_APN);
+	if (ret != 0)
+		return ret; 
 
-		    	/* AT layer needs info about UART. */
-		    	sim800_at->arg = (void *) &iface;
+	/* Get the IMEI. */
+	(void) sim800_modem->ops->imei(sim800_modem,
+			               (char *) mdata.mdm_imei, MDM_IMEI_LENGTH);
 
-		    	/* Open this "AT" device. */
-		    	if (at_open(sim800_at) == 0) {
+	/* Get the manufacturer. */
+	(void) sim800_modem->ops->manufacturer(sim800_modem,
+			               (char *) mdata.mdm_manufacturer, MDM_MANUFACTURER_LENGTH);
 
-			    	/* Attach Modem with "AT" instance. */
-			    	ret = cellular_attach(sim800_modem, sim800_at, CONFIG_MODEM_SIM80X_APN);
+	/* Get the model. */
+	(void) sim800_modem->ops->model(sim800_modem,
+			               (char *) mdata.mdm_model, MDM_MODEL_LENGTH);
 
-					/* Get the IMEI. */
-					(void) sim800_modem->ops->imei(sim800_modem,
-							               (char *) mdata.mdm_imei, MDM_IMEI_LENGTH);
-
-					/* Get the manufacturer. */
-					(void) sim800_modem->ops->manufacturer(sim800_modem,
-							               (char *) mdata.mdm_manufacturer, MDM_MANUFACTURER_LENGTH);
-
-					/* Get the model. */
-					(void) sim800_modem->ops->model(sim800_modem,
-							               (char *) mdata.mdm_model, MDM_MODEL_LENGTH);
-
-					/* Get the revision. */
-					(void) sim800_modem->ops->model(sim800_modem,
-							               (char *) mdata.mdm_revision, MDM_REVISION_LENGTH);
-					
-					/* Get the RSSI. */
-					for (mctx.data_rssi = 0; 
-						mctx.data_rssi < CONFIG_MODEM_MINIMUM_RSSI; 
-						mctx.data_rssi = sim800_modem->ops->rssi(sim800_modem)) {
-						LOG_INF("RSSI: %d", mctx.data_rssi);
-						k_sleep(K_SECONDS(1));		
-					}
-					LOG_INF("RSSI: %d", mctx.data_rssi);
-
-		    	}
-		    }
-	    }
+	/* Get the revision. */
+	(void) sim800_modem->ops->model(sim800_modem,
+			               (char *) mdata.mdm_revision, MDM_REVISION_LENGTH);
+	
+	/* Get the RSSI. */
+	for (mctx.data_rssi = 0; 
+		mctx.data_rssi < CONFIG_MODEM_MINIMUM_RSSI; 
+		mctx.data_rssi = sim800_modem->ops->rssi(sim800_modem)) {
+		LOG_INF("RSSI: %d", mctx.data_rssi);
+		k_sleep(K_SECONDS(1));		
 	}
-
-	/* Modem Initialized successfully? */
-	return (ret);
+	LOG_INF("RSSI: %d", mctx.data_rssi);
+	
+	return 0;
 }
 
 /* Create the SIM80x device. */

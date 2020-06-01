@@ -207,9 +207,6 @@ static int sim800_attach(struct cellular *modem)
     /* Disable local echo again; make sure it was disabled successfully. */
     at_command_simple(modem->at, "ATE0");
 
-/*    k_sleep(5000);
-    at_command(modem->at, "AT+CGATT=1"); */
-
     /* Initialize modem. */
     static const char *const init_strings[] = {
         "AT+IPR=0",                     /* Enable autobauding if not already enabled. */
@@ -389,6 +386,11 @@ static int sim800_pdp_open(struct cellular *modem, const char *apn)
     if (sim800_ipstatus(modem) == 0)
         return 0;
 
+    /* Check if GPRS is connected, connect when disconnected */
+    const char* gprs_response = at_command(modem->at, "AT+CGATT?");
+    if (strncmp(gprs_response, "+CGATT: 1", sizeof("+CGATT: 1") - 1) != 0)
+        at_command(modem->at, "AT+CGATT=1");
+
     /* Commands below don't check the response. This is intentional; instead
      * of trying to stay in sync with the GPRS state machine we blindly issue
      * the command sequence needed to transition through all the states and
@@ -396,7 +398,7 @@ static int sim800_pdp_open(struct cellular *modem, const char *apn)
      * the GPRS states documentation. */
 
     /* Configure context for TCP/IP applications. */
-    at_command(modem->at, "AT+CSTT=\"%s\",\"telenor\",\"telenor\"", apn);
+    at_command(modem->at, "AT+CSTT=\"%s\"", apn);
     /* Establish context. */
     at_command(modem->at, "AT+CIICR");
     /* Read local IP address. Switches modem to IP STATUS state. */
