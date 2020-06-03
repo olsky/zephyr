@@ -24,6 +24,7 @@ LOG_MODULE_REGISTER(mqtt_publisher, LOG_LEVEL_DBG);
 #define CLIENT_ID_MAX_LENGTH (23) 
 static u8_t client_id_buf[CLIENT_ID_MAX_LENGTH+1];
 static u8_t publish_topic[256];
+static u8_t subscription_topic[256];
 
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[APP_MQTT_BUFFER_SIZE];
@@ -353,7 +354,8 @@ static int init_client_id(const char *client_id)
 			(*c < 'a' || *c > 'z') && 
 			(*c < 'A' || *c > 'Z')) {
 			LOG_ERR("MQTT: client_id '%s' has invalid characters, "
-				"see MQTT Spec MQTT-3.1.3-5.", log_strdup(client_id));
+				"see MQTT Spec MQTT-3.1.3-5.",
+				log_strdup(client_id));
 			return  EINVAL;	
 		}
 		
@@ -366,8 +368,17 @@ static int init_client_id(const char *client_id)
 		LOG_ERR("MQTT: publish topic is too long.");  
 		return EINVAL;
 	}
+
+	if (sizeof(subscription_topic) <= snprintf(subscription_topic, 
+			sizeof(subscription_topic),
+			CONFIG_MQTT_SUB_TOPIC, 
+			client_id)) {
+		LOG_ERR("MQTT: subscription topic is too long.");  
+		return EINVAL;
+	}
 		
 	LOG_INF("Pub-topic: %s", log_strdup(publish_topic));
+	LOG_INF("Sub-topic: %s", log_strdup(subscription_topic));
 	LOG_INF("MQTT Client Id: %s", log_strdup(client_id_buf));
 
 	return 0;
@@ -442,12 +453,12 @@ static void client_init(struct mqtt_client *client)
 
 static bool mqtt_sub(void)
 {
-	LOG_INF("try to subscribe to %s", log_strdup(CONFIG_MQTT_SUB_TOPIC));
+	LOG_INF("trying to subscribe to %s", log_strdup(subscription_topic));
 	struct mqtt_topic subscribe_topics[] = {
 		{
 			.topic = {
-				.utf8 = CONFIG_MQTT_SUB_TOPIC,
-				.size = strlen(CONFIG_MQTT_SUB_TOPIC)
+				.utf8 = subscription_topic,
+				.size = strlen(subscription_topic)
 			},
 			.qos = MQTT_QOS_0_AT_MOST_ONCE
 		}
@@ -459,11 +470,7 @@ static bool mqtt_sub(void)
 		.message_id = sys_rand32_get()
 	};
 
-	/* Ping.. */
-	int rc = mqtt_ping(&client_ctx);
-	PRINT_RESULT("mqtt_ping", rc);
-
-	rc = mqtt_subscribe(&client_ctx, &subscription_list);
+	int rc = mqtt_subscribe(&client_ctx, &subscription_list);
 	PRINT_RESULT("try_to_subscribe", rc);
 	return 0 == rc;
 }
