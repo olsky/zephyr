@@ -297,7 +297,8 @@ static ssize_t offload_recvfrom(void *obj, void *buf, size_t len,
 	struct modem_socket *sock = (struct modem_socket *) obj;
 
 	if (!buf || len == 0) {
-		return -EINVAL;
+		errno = EINVAL;
+		return -1;
 	}
 
 	const int read = sim800_modem->ops->socket_recv(
