@@ -61,7 +61,7 @@ static void uart_isr(struct device *x)
 			return;
 
 		while (uart_fifo_read(uart, &rx_byte, 1)) {
-			if (rx_byte != '\r') {
+			if (rx_byte != '\n') {
 				rx_buf[rx_len] = rx_byte;
 				// stop growing the message once max length is reached
 				rx_len += (rx_len < MESH_MSG_MAX_LEN ? 1 : 0);
